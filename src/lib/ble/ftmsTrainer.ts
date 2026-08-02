@@ -38,6 +38,15 @@ const HEARTBEAT_MS = 5000
 const DEVICE_INFORMATION = 0x180a
 const BATTERY_SERVICE = 0x180f
 
+/**
+ * Reconnect attempts after a drop. Web Bluetooth remembers a device the rider
+ * already chose, so getting back on does not need another gesture — which
+ * matters when the interruption happens mid-climb.
+ */
+const RECONNECT_ATTEMPTS = 6
+const RECONNECT_BASE_MS = 1000
+const RECONNECT_CAP_MS = 20_000
+
 export class FtmsTrainer implements Trainer {
   ondata: ((data: TrainerData) => void) | null = null
   onstate: ((state: ConnectionState, detail?: string) => void) | null = null
@@ -52,6 +61,10 @@ export class FtmsTrainer implements Trainer {
   private sentGradient: number | null = null
   private lastSentAt = 0
   private flushTimer: ReturnType<typeof setInterval> | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectAttempts = 0
+  /** Set while disconnecting on purpose, so we do not fight the rider. */
+  private closing = false
 
   /** Serialises control point writes: overlapping GATT operations are rejected. */
   private queue: Promise<unknown> = Promise.resolve()
@@ -73,6 +86,7 @@ export class FtmsTrainer implements Trainer {
       throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge.')
     }
 
+    this.closing = false
     this.setState('connecting')
     try {
       this.device = await navigator.bluetooth.requestDevice({
@@ -82,14 +96,9 @@ export class FtmsTrainer implements Trainer {
       this.name = this.device.name ?? 'Trainer'
       this.device.addEventListener('gattserverdisconnected', this.onDropped)
 
-      const server = await this.device.gatt?.connect()
-      if (!server) throw new Error('Could not reach the trainer over GATT.')
+      await this.openSession()
 
-      const service = await server.getPrimaryService(FTMS_SERVICE)
-      await this.checkFeatures(service)
-      await this.subscribeToData(service)
-      await this.takeControl(service)
-
+      this.reconnectAttempts = 0
       this.setState('connected')
       this.flushTimer ??= setInterval(() => void this.flush(), FLUSH_MS)
     } catch (error) {
@@ -99,9 +108,15 @@ export class FtmsTrainer implements Trainer {
   }
 
   async disconnect(): Promise<void> {
+    this.closing = true
+
     if (this.flushTimer !== null) {
       clearInterval(this.flushTimer)
       this.flushTimer = null
+    }
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
     }
 
     // Best effort: hand control back before dropping the link.
@@ -118,6 +133,49 @@ export class FtmsTrainer implements Trainer {
   /** Records the wanted gradient. The flush timer decides when it goes out. */
   async setSimulation(gradientPct: number): Promise<void> {
     this.desiredGradient = gradientPct
+  }
+
+  /** Everything needed to go from a connected GATT server to a usable trainer. */
+  private async openSession(): Promise<void> {
+    const server = await this.device?.gatt?.connect()
+    if (!server) throw new Error('Could not reach the trainer over GATT.')
+
+    const service = await server.getPrimaryService(FTMS_SERVICE)
+    await this.checkFeatures(service)
+    await this.subscribeToData(service)
+    await this.takeControl(service)
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closing || this.reconnectTimer !== null) return
+
+    if (this.reconnectAttempts >= RECONNECT_ATTEMPTS) {
+      this.setState('error', `Lost ${this.name} and could not get it back.`)
+      return
+    }
+
+    const delay = Math.min(RECONNECT_CAP_MS, RECONNECT_BASE_MS * 2 ** this.reconnectAttempts)
+    this.reconnectAttempts += 1
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      void this.reconnect()
+    }, delay)
+  }
+
+  private async reconnect(): Promise<void> {
+    if (this.closing) return
+
+    this.setState('connecting', `Reconnecting to ${this.name}…`)
+    try {
+      await this.openSession()
+      this.reconnectAttempts = 0
+      // Force the next flush to resend: the trainer forgot where it was.
+      this.sentGradient = null
+      this.setState('connected')
+    } catch {
+      this.scheduleReconnect()
+    }
   }
 
   private async checkFeatures(service: BluetoothRemoteGATTService): Promise<void> {
@@ -206,6 +264,7 @@ export class FtmsTrainer implements Trainer {
     this.controlPoint = null
     this.sentGradient = null
     this.setState('disconnected', 'The trainer dropped its connection.')
+    this.scheduleReconnect()
   }
 
   private setState(state: ConnectionState, detail?: string): void {

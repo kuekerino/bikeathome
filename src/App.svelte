@@ -10,6 +10,7 @@
   import SettingsPanel from './components/SettingsPanel.svelte'
   import type { Route } from './lib/gpx/route'
   import { loadSettings, type AppSettings } from './lib/settings'
+  import { keepScreenAwake } from './lib/wakeLock'
   import {
     applySettings,
     bluetoothAvailable,
@@ -52,6 +53,8 @@
   const ride = $derived($engine)
   const virtualShifting = $derived(settings.drivetrain.mode === 'virtual')
   const riding = $derived(ride.status === 'riding' || ride.status === 'paused')
+
+  $effect(() => keepScreenAwake(ride.status === 'riding'))
 
   const devices = $derived<DeviceRow[]>([
     {

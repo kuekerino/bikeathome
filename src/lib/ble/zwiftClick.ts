@@ -25,6 +25,11 @@ const BATTERY_SERVICE = 0x180f
 const BATTERY_LEVEL = 0x2a19
 const DEVICE_INFORMATION = 0x180a
 
+/** A Click that drops mid-ride should come back without the rider stopping. */
+const RECONNECT_ATTEMPTS = 6
+const RECONNECT_BASE_MS = 1000
+const RECONNECT_CAP_MS = 20_000
+
 export class ZwiftClick implements Shifter {
   onshift: ((direction: 1 | -1) => void) | null = null
   onbattery: ((percent: number) => void) | null = null
@@ -34,6 +39,9 @@ export class ZwiftClick implements Shifter {
   private connection: ConnectionState = 'disconnected'
   private name = 'Zwift Click'
   private readonly shifts = new ClickShiftDetector()
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectAttempts = 0
+  private closing = false
 
   get label(): string {
     return this.name
@@ -48,6 +56,7 @@ export class ZwiftClick implements Shifter {
       throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge.')
     }
 
+    this.closing = false
     this.setState('connecting')
     try {
       this.device = await navigator.bluetooth.requestDevice({
@@ -64,15 +73,9 @@ export class ZwiftClick implements Shifter {
       this.name = this.device.name ?? 'Zwift Click'
       this.device.addEventListener('gattserverdisconnected', this.onDropped)
 
-      const server = await this.device.gatt?.connect()
-      if (!server) throw new Error('Could not reach the Click over GATT.')
+      await this.openSession()
 
-      const service = await findZwiftService(server)
-      this.shifts.reset()
-      await this.listen(service)
-      await this.shakeHands(service)
-      await this.readBattery(server)
-
+      this.reconnectAttempts = 0
       this.setState('connected')
     } catch (error) {
       this.setState('error', describe(error))
@@ -81,11 +84,59 @@ export class ZwiftClick implements Shifter {
   }
 
   async disconnect(): Promise<void> {
+    this.closing = true
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+
     this.device?.removeEventListener('gattserverdisconnected', this.onDropped)
     this.device?.gatt?.disconnect()
     this.device = null
     this.shifts.reset()
     this.setState('disconnected')
+  }
+
+  private async openSession(): Promise<void> {
+    const server = await this.device?.gatt?.connect()
+    if (!server) throw new Error('Could not reach the Click over GATT.')
+
+    const service = await findZwiftService(server)
+    // Whatever the buttons were doing before the drop is no longer true.
+    this.shifts.reset()
+    await this.listen(service)
+    await this.shakeHands(service)
+    await this.readBattery(server)
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closing || this.reconnectTimer !== null) return
+
+    if (this.reconnectAttempts >= RECONNECT_ATTEMPTS) {
+      this.setState('error', `Lost ${this.name}. Shift with the keyboard, or pair again.`)
+      return
+    }
+
+    const delay = Math.min(RECONNECT_CAP_MS, RECONNECT_BASE_MS * 2 ** this.reconnectAttempts)
+    this.reconnectAttempts += 1
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      void this.reconnect()
+    }, delay)
+  }
+
+  private async reconnect(): Promise<void> {
+    if (this.closing) return
+
+    this.setState('connecting', `Reconnecting to ${this.name}…`)
+    try {
+      await this.openSession()
+      this.reconnectAttempts = 0
+      this.setState('connected')
+    } catch {
+      this.scheduleReconnect()
+    }
   }
 
   private async listen(service: BluetoothRemoteGATTService): Promise<void> {
@@ -147,6 +198,7 @@ export class ZwiftClick implements Shifter {
   private readonly onDropped = (): void => {
     this.shifts.reset()
     this.setState('disconnected', 'The Click dropped its connection.')
+    this.scheduleReconnect()
   }
 
   private setState(state: ConnectionState, detail?: string): void {
