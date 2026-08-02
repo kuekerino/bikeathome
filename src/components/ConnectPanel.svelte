@@ -1,20 +1,26 @@
 <script lang="ts">
   import type { ConnectionState } from '../lib/ble/types'
 
+  export interface DeviceAction {
+    label: string
+    run: () => void
+  }
+
   export interface DeviceRow {
     label: string
     what: string
     state: ConnectionState
     detail?: string
-    /** Absent while a device cannot be paired yet. */
-    connect?: () => void
+    actions?: DeviceAction[]
   }
 
   interface Props {
     devices: DeviceRow[]
+    /** Shown once, when the browser cannot pair anything at all. */
+    note?: string
   }
 
-  let { devices }: Props = $props()
+  let { devices, note }: Props = $props()
 
   const wording: Record<ConnectionState, string> = {
     disconnected: 'Not connected',
@@ -31,11 +37,20 @@
       <span class="what">{device.what}</span>
       <span class="label">{device.state === 'connected' ? device.label : wording[device.state]}</span>
       {#if device.detail}<span class="detail">{device.detail}</span>{/if}
-      {#if device.connect && device.state !== 'connected'}
-        <button onclick={device.connect} disabled={device.state === 'connecting'}>Connect</button>
+      {#if device.actions?.length}
+        <span class="actions">
+          {#each device.actions as action (action.label)}
+            <button onclick={action.run} disabled={device.state === 'connecting'}>
+              {action.label}
+            </button>
+          {/each}
+        </span>
       {/if}
     </li>
   {/each}
+  {#if note}
+    <li class="note">{note}</li>
+  {/if}
 </ul>
 
 <style>
@@ -95,9 +110,20 @@
     font-variant-numeric: tabular-nums;
   }
 
-  button {
+  .actions {
     margin-left: auto;
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  button {
     padding: 4px 12px;
     font-size: 0.85rem;
+  }
+
+  .note {
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
   }
 </style>

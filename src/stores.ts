@@ -3,9 +3,11 @@
  * and the timer that drives it.
  */
 
+import { FtmsTrainer } from './lib/ble/ftmsTrainer'
 import { KeyboardShifter } from './lib/ble/keyboardShifter'
 import { SimulatedTrainer } from './lib/ble/simulatedTrainer'
-import type { Trainer } from './lib/ble/types'
+import type { Shifter, Trainer } from './lib/ble/types'
+import { ZwiftClick } from './lib/ble/zwiftClick'
 import { parseGpx } from './lib/gpx/parser'
 import { Route } from './lib/gpx/route'
 import { RideEngine } from './lib/ride/engine'
@@ -21,14 +23,16 @@ export const recorder = new RideRecorder()
 
 /** Always available, even with a Click paired, as a fallback mid-ride. */
 export const keyboardShifter = new KeyboardShifter()
+export const zwiftClick = new ZwiftClick()
 
 let simulated: SimulatedTrainer | null = null
+let ftms: FtmsTrainer | null = null
 
 export function startSession(): () => void {
   applySettings(loadSettings())
 
   void keyboardShifter.connect()
-  engine.attachShifter(keyboardShifter)
+  engine.addShifter(keyboardShifter)
 
   const timer = setInterval(() => {
     // The engine wants a monotonic clock so a system time change cannot make
@@ -71,6 +75,9 @@ export function exportRide(): void {
 export function applySettings(settings: AppSettings): void {
   engine.configure(settings)
   simulated?.configure({ rider: settings.rider, drivetrain: settings.drivetrain })
+  // The trainer re-adds rolling and drag on top of whatever gradient it is
+  // given, so it needs the same coefficients the app subtracted out.
+  ftms?.configure(settings.rider)
   saveSettings(settings)
 }
 
@@ -79,6 +86,26 @@ export async function useSimulatedTrainer(): Promise<Trainer> {
   await simulated.connect()
   engine.attachTrainer(simulated)
   return simulated
+}
+
+/** Both of these open the browser's device chooser, so both need a click. */
+export async function pairTrainer(): Promise<Trainer> {
+  ftms ??= new FtmsTrainer()
+  ftms.configure(loadSettings().rider)
+  await ftms.connect()
+  engine.attachTrainer(ftms)
+  return ftms
+}
+
+export async function pairShifter(): Promise<Shifter> {
+  await zwiftClick.connect()
+  engine.addShifter(zwiftClick)
+  return zwiftClick
+}
+
+/** Web Bluetooth is Chrome and Edge only, and needs HTTPS or localhost. */
+export function bluetoothAvailable(): boolean {
+  return typeof navigator !== 'undefined' && navigator.bluetooth !== undefined
 }
 
 export function loadRouteFromText(xml: string): void {

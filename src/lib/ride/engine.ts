@@ -88,7 +88,7 @@ export class RideEngine {
   private autoPaused = false
 
   private trainer: Trainer | null = null
-  private shifter: Shifter | null = null
+  private readonly shifters = new Set<Shifter>()
   private readonly listeners = new Set<(snapshot: RideSnapshot) => void>()
 
   constructor(options: RideEngineOptions = {}) {
@@ -106,11 +106,23 @@ export class RideEngine {
     this.notify()
   }
 
-  attachShifter(shifter: Shifter | null): void {
-    if (this.shifter) this.shifter.onshift = null
-    this.shifter = shifter
-    if (shifter) shifter.onshift = (direction) => this.shift(direction)
+  /**
+   * Several shifters can be live at once, which is the point: the keyboard
+   * stays usable with a Click paired, so a dropout mid-climb is an
+   * inconvenience rather than the end of the ride.
+   *
+   * Returns a function that detaches this one.
+   */
+  addShifter(shifter: Shifter): () => void {
+    this.shifters.add(shifter)
+    shifter.onshift = (direction) => this.shift(direction)
     this.notify()
+
+    return () => {
+      shifter.onshift = null
+      this.shifters.delete(shifter)
+      this.notify()
+    }
   }
 
   configure(settings: { rider?: RiderSettings; drivetrain?: DrivetrainSettings }): void {

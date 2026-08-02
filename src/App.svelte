@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import type { ConnectionState } from './lib/ble/types'
   import ConnectPanel, { type DeviceRow } from './components/ConnectPanel.svelte'
   import Dashboard from './components/Dashboard.svelte'
   import ElevationProfile from './components/ElevationProfile.svelte'
@@ -11,23 +12,42 @@
   import { loadSettings, type AppSettings } from './lib/settings'
   import {
     applySettings,
+    bluetoothAvailable,
     engine,
     exportRide,
-    keyboardShifter,
     loadDemoRoute,
     loadRouteFromText,
+    pairShifter,
+    pairTrainer,
     startRide,
     startSession,
     useSimulatedTrainer,
+    zwiftClick,
   } from './stores'
 
   let route = $state<Route | null>(null)
   let settings = $state<AppSettings>(loadSettings())
-  let trainerLabel = $state<string | null>(null)
   let error = $state<string | null>(null)
   let busy = $state(false)
 
-  onMount(() => startSession())
+  let trainerLabel = $state<string | null>(null)
+  let trainerState = $state<ConnectionState>('disconnected')
+  let clickState = $state<ConnectionState>('disconnected')
+  let clickBattery = $state<number | null>(null)
+
+  const bluetooth = bluetoothAvailable()
+
+  onMount(() => {
+    const stop = startSession()
+
+    zwiftClick.onstate = (state, detail) => {
+      clickState = state
+      if (state === 'error' && detail) error = detail
+    }
+    zwiftClick.onbattery = (percent) => (clickBattery = percent)
+
+    return stop
+  })
 
   const ride = $derived($engine)
   const virtualShifting = $derived(settings.drivetrain.mode === 'virtual')
@@ -37,17 +57,35 @@
     {
       what: 'Trainer',
       label: trainerLabel ?? '',
-      state: trainerLabel ? 'connected' : 'disconnected',
-      detail: trainerLabel ? `${Math.round(ride.powerW)} W` : undefined,
-      connect: () => void connectSimulator(),
+      state: trainerState,
+      detail: trainerState === 'connected' ? `${Math.round(ride.powerW)} W` : undefined,
+      actions:
+        trainerState === 'connected'
+          ? []
+          : [
+              ...(bluetooth ? [{ label: 'Pair trainer', run: () => void connectTrainer() }] : []),
+              { label: 'Use demo trainer', run: () => void connectSimulator() },
+            ],
     },
     {
+      // The keyboard is always live, so the shifter row is never truly
+      // disconnected — a paired Click is an upgrade, not a prerequisite.
       what: 'Shifter',
-      label: keyboardShifter.label,
+      label: clickState === 'connected' ? zwiftClick.label : 'Keyboard',
       state: 'connected',
-      detail: virtualShifting ? `gear ${ride.gear}` : 'not needed',
+      detail: clickBattery !== null ? `${clickBattery}%` : virtualShifting ? `gear ${ride.gear}` : 'not needed',
+      actions:
+        bluetooth && virtualShifting && clickState !== 'connected'
+          ? [{ label: 'Pair Zwift Click', run: () => void connectClick() }]
+          : [],
     },
   ])
+
+  const browserNote = $derived(
+    bluetooth
+      ? undefined
+      : 'This browser cannot pair Bluetooth devices. Use Chrome or Edge for real hardware — the demo trainer works anywhere.',
+  )
 
   async function attempt(action: () => Promise<void> | void): Promise<void> {
     error = null
@@ -76,6 +114,24 @@
   const connectSimulator = () =>
     attempt(async () => {
       trainerLabel = (await useSimulatedTrainer()).label
+      trainerState = 'connected'
+    })
+
+  const connectTrainer = () =>
+    attempt(async () => {
+      const trainer = await pairTrainer()
+      trainerLabel = trainer.label
+      trainerState = trainer.state
+      trainer.onstate = (state, detail) => {
+        trainerState = state
+        if (state === 'error' && detail) error = detail
+      }
+    })
+
+  const connectClick = () =>
+    attempt(async () => {
+      await pairShifter()
+      clickState = zwiftClick.state
     })
 
   function updateSettings(next: AppSettings): void {
@@ -109,7 +165,7 @@
     <RouteLoader onFile={openFile} onDemo={openDemoRoute} {busy} />
   {/if}
 
-  <ConnectPanel {devices} />
+  <ConnectPanel {devices} note={browserNote} />
 
   {#if route}
     <Dashboard {ride} {virtualShifting} />

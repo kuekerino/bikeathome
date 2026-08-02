@@ -229,7 +229,7 @@ describe('shifter wiring', () => {
   it('shifts on a button press', () => {
     const { engine } = setup()
     const shifter = new FakeShifter()
-    engine.attachShifter(shifter)
+    engine.addShifter(shifter)
 
     const start = engine.snapshot().gear
     shifter.press(1)
@@ -242,12 +242,26 @@ describe('shifter wiring', () => {
   it('stops listening to a detached shifter', () => {
     const { engine } = setup()
     const shifter = new FakeShifter()
-    engine.attachShifter(shifter)
-    engine.attachShifter(null)
+    const detach = engine.addShifter(shifter)
+    detach()
 
     const start = engine.snapshot().gear
     shifter.press(1)
     expect(engine.snapshot().gear).toBe(start)
+  })
+
+  // A paired Click must not cost the rider their keyboard fallback.
+  it('listens to several shifters at once', () => {
+    const { engine } = setup()
+    const click = new FakeShifter()
+    const keyboard = new FakeShifter()
+    engine.addShifter(click)
+    engine.addShifter(keyboard)
+
+    const start = engine.snapshot().gear
+    click.press(1)
+    keyboard.press(1)
+    expect(engine.snapshot().gear).toBe(start + 2)
   })
 })
 
