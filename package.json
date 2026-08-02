@@ -1,0 +1,24 @@
+{
+  "name": "bikeathome",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ride your own GPX routes on a smart trainer, with virtual shifting for single-cog setups",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@types/web-bluetooth": "^0.0.21",
+    "svelte": "^5.56.8",
+    "svelte-check": "^4.7.4",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
+  }
+}
