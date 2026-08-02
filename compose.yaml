@@ -1,0 +1,20 @@
+services:
+  bikeathome:
+    build: .
+    container_name: bikeathome
+    restart: unless-stopped
+    ports:
+      - '8443:8443'
+    environment:
+      # Set this to the address you will actually type into the browser. The
+      # certificate is issued for exactly this name, so `192.168.1.50:8443` and
+      # `bikeathome.lan:8443` are not interchangeable.
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost:8443}
+    volumes:
+      # Caddy keeps its local certificate authority here. Without this volume a
+      # fresh root is minted every time the container is recreated, and every
+      # machine that rides has to be told to trust it again.
+      - caddy-data:/data
+
+volumes:
+  caddy-data:

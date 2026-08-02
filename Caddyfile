@@ -1,0 +1,27 @@
+# Serves the built app over HTTPS on the local network.
+#
+# HTTPS is not optional here. Web Bluetooth only works in a secure context, and
+# a bare LAN address over plain HTTP is not one — the app would load, look
+# perfectly healthy, and simply never offer to pair the trainer. `tls internal`
+# issues a certificate from Caddy's own local CA, which the riding machine
+# trusts once. See the README.
+
+{$SITE_ADDRESS:localhost:8443} {
+	# The address above names the site, so the certificate is issued for it and
+	# requests are matched against it. But that address does not exist inside
+	# the container's network namespace, so binding to it would fail — listen
+	# on everything instead and let Docker do the publishing.
+	bind 0.0.0.0
+
+	tls internal
+
+	root * /srv
+	file_server
+	encode zstd gzip
+
+	# Asset filenames carry a content hash, so they can be cached forever. The
+	# entry point that points at them must not be, or a rebuilt app is invisible.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	header /index.html Cache-Control "no-cache"
+}

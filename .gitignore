@@ -3,3 +3,8 @@ dist/
 .vite/
 *.local
 .DS_Store
+
+# A real route starts and ends at your front door. Keep personal GPX files out
+# of the repository; the synthetic demo route is the one exception.
+*.gpx
+!public/demo-route.gpx

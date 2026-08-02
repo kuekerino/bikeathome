@@ -1,13 +1,12 @@
 # Publishes the built site to GitHub Pages.
 #
-# Needs Pages enabled first: Settings -> Pages -> Source: GitHub Actions.
-# On a private repository that requires a paid plan; see the README for the
-# free alternatives.
+# Run by hand only. Pages cannot publish from a private repository without a
+# paid plan, so firing this on every push to main would just produce a failing
+# run for something nobody asked for. Enable Pages first (Settings -> Pages ->
+# Source: GitHub Actions), then add a `push` trigger if you want it automatic.
 name: Deploy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

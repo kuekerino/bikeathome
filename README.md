@@ -79,19 +79,65 @@ chainring and cog your bike is actually in, so the middle of the block feels neu
   clamped to 25%. Raw GPS elevation is noisy enough that per-segment gradients are
   meaningless without it.
 
-## Hosting it
+## Self-hosting it
 
-Once built, the app is static files — no Node at run time. Publishing it means you can
-open a bookmark and ride, with nothing installed.
+Once built, the app is 140 KB of static files — no Node at run time, no backend, no
+database, nothing kept on the server. The browser does all the work, including the
+Bluetooth. Hosting it just means you can open a bookmark and ride, with nothing
+installed on the riding machine.
 
-`.github/workflows/pages.yml` deploys to GitHub Pages on a push to `main`, once Pages
-is enabled under **Settings → Pages → Source: GitHub Actions**. On a private repository
-that needs a paid GitHub plan. Cloudflare Pages and Netlify both deploy from a private
-repo for free and work just as well; the build command is `npm run build` and the
-output directory is `dist`.
+```sh
+SITE_ADDRESS=192.168.1.50:8443 docker compose up -d --build
+```
 
-The build uses relative asset paths, so it works from a subpath or a domain root
-without configuration.
+Set `SITE_ADDRESS` to the address you will actually type into the browser. The
+certificate is issued for exactly that name, so `192.168.1.50:8443` and
+`bikeathome.lan:8443` are not interchangeable.
+
+### Trust the certificate — this step is not optional
+
+**Web Bluetooth only works in a secure context.** `localhost` counts; a bare LAN address
+over plain HTTP does not. Serve this over `http://192.168.1.50:8443` and the app will
+load, look completely healthy, and simply never offer to pair your trainer. The failure
+is a missing button, not an error message.
+
+Caddy issues a certificate from its own local certificate authority. Trust that
+authority once on each machine you ride from:
+
+```sh
+docker compose cp bikeathome:/data/caddy/pki/authorities/local/root.crt .
+sudo security add-trusted-cert -d -k /Library/Keychains/System.keychain root.crt   # macOS
+```
+
+The `caddy-data` volume keeps that authority across restarts. Remove the volume and a
+fresh root is minted, and every machine has to be told to trust it again.
+
+Two ways to skip all of this:
+
+- **Run the container on the machine you ride at.** `https://localhost:8443` needs no
+  trust step at all, and even plain `http://localhost` would be a secure context. The
+  TLS work only buys the ability to ride from a different machine than the host.
+- **Use Tailscale.** `tailscale serve` issues a genuinely trusted certificate with no
+  local CA to juggle.
+
+### Hosted alternatives
+
+`.github/workflows/pages.yml` deploys to GitHub Pages, but it is `workflow_dispatch`
+only — Pages cannot publish from a private repository without a paid GitHub plan, so
+running it on every push would just produce a failing job. Cloudflare Pages and Netlify
+both deploy from a private repo for free; the build command is `npm run build` and the
+output directory is `dist`. The build uses relative asset paths, so it works from a
+subpath or a domain root without configuration.
+
+## Licence
+
+None yet — which means all rights reserved, and the repository is private on purpose.
+Public with no licence would be the worst combination: readable by everyone, usable by
+nobody.
+
+Nothing here is copied from another project. The Bluetooth work is built on published
+protocol facts rather than borrowed source — see Credit below — so a licence can be
+added later without untangling anything.
 
 ## Development
 
@@ -114,9 +160,13 @@ gives 34.6 km/h on the flat, and coasting a 6% descent settles at 49.6 km/h.
 
 ## Credit
 
-The virtual shifting force model follows the approach documented in
-[SHIFTR](https://github.com/JuergenLeber/SHIFTR). The Zwift Click BLE protocol was
-reverse-engineered by [zwiftplay](https://github.com/ajchellew/zwiftplay) and
-[Zwift_click_handling](https://github.com/jat255/Zwift_click_handling).
+No source code here is copied from another project; what was used is factual. FTMS is
+an open Bluetooth SIG standard. The Zwift Click's UUIDs, `RideOn` handshake and message
+encoding come from the reverse-engineering published by
+[zwiftplay](https://github.com/ajchellew/zwiftplay) (no declared licence) and
+[Zwift_click_handling](https://github.com/jat255/Zwift_click_handling) (MIT). The
+"track resistance" force model follows the approach documented in
+[SHIFTR](https://github.com/JuergenLeber/SHIFTR) (GPL-3.0); the formulas here were
+derived and written independently from that description.
 
 Not affiliated with Zwift or Wahoo.
