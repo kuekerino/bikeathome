@@ -1,4 +1,18 @@
-/** Display formatting. Kept apart from the physics, which is all SI. */
+/** Display helpers. Kept apart from the physics, which is all SI. */
+
+/**
+ * Gradient bands, roughly how a rider reads a road: flat-ish, rising, hard,
+ * and a wall, mirrored for descents. Literal colours rather than CSS
+ * variables because these are also used inside SVG gradient stops.
+ */
+export function gradientColour(percent: number): string {
+  if (percent >= 10) return '#f85149'
+  if (percent >= 6) return '#e8952e'
+  if (percent >= 3) return '#d4c93a'
+  if (percent >= -1) return '#3fb950'
+  if (percent >= -5) return '#6fb8ff'
+  return '#4ea1ff'
+}
 
 export function toKmh(speedMs: number): number {
   return speedMs * 3.6
