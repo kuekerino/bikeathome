@@ -1,12 +1,16 @@
-# Publishes the built site to GitHub Pages.
+# Publishes the built site to GitHub Pages on every push to main.
 #
-# Run by hand only. Pages cannot publish from a private repository without a
-# paid plan, so firing this on every push to main would just produce a failing
-# run for something nobody asked for. Enable Pages first (Settings -> Pages ->
-# Source: GitHub Actions), then add a `push` trigger if you want it automatic.
+# Requires Pages to be switched on once: Settings -> Pages -> Source: GitHub
+# Actions. Without that the deploy step fails with a 404, which reads as a
+# broken workflow rather than a missing setting.
+#
+# The site lands on a project subpath (/bikeathome/). That works because the
+# Vite build uses a relative base, so nothing here needs to know the URL.
 name: Deploy
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

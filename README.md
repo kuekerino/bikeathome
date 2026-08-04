@@ -2,6 +2,9 @@
 
 Ride your own GPX routes on a smart trainer, in the browser.
 
+**[Open it →](https://kuekerino.github.io/bikeathome/)** — Chrome or Edge to pair a
+trainer, any browser for the demo ride.
+
 Built for a **Wahoo Kickr Core 2 with a Zwift Cog** — a single-sprocket setup where
 physical shifting is impossible, so the app shifts in software and sends the resulting
 resistance to the trainer over standard Bluetooth FTMS. A **Zwift Click** on the
