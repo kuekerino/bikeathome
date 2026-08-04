@@ -165,6 +165,11 @@ do it for you, because creating a Pages site needs repository-admin rights that
 build above it. Cloudflare Pages and Netlify work just as well; the build command is
 `npm run build` and the output directory is `dist`.
 
+## What is not here yet
+
+Structured intervals, customisable gear ratios and a few smaller things are sketched in
+[ROADMAP.md](ROADMAP.md), including which workout format is likely to win and why.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE). Use it, change it, ship it. No warranty, and no
