@@ -47,11 +47,26 @@ HTTPS; any other host must be served over HTTPS.
 4. Set your rider and bike weight under **Rider and drivetrain**, and set the same
    figure in the Wahoo app so the trainer's own model agrees with this one.
 
-Shift with the Click, or with <kbd>+</kbd> / <kbd>−</kbd> / the arrow keys. If the
-button you want for a harder gear gives you an easier one, tick **Swap the Click's
-buttons** — which physical button reports as "up" varies with firmware and mounting,
-and cannot be worked out from the browser. Export writes a TCX file that Strava,
-intervals.icu and Garmin Connect all accept.
+Shift with the Click, or with <kbd>+</kbd> / <kbd>−</kbd> / the arrow keys. Export
+writes a TCX file that Strava, intervals.icu and Garmin Connect all accept.
+
+### Holding a set power
+
+Tick **Hold a set power** and the trainer holds that wattage whatever gear you are in
+— ERG, in the usual jargon. Three step buttons either side of the number move it by 1,
+10 or 50 W, because setting an effort mid-interval is not a job for a text field.
+
+Speed is deliberately unaffected: it still comes from the watts the trainer reports and
+the route's real gradient, so a session in watt mode is still a ride along the route and
+still exports as one.
+
+### Remapping the controls
+
+Under **Controls**, every key and both shifter buttons can be pointed at any action —
+shifting, the watt steps, pausing. Add a key by pressing it rather than typing its name.
+
+Which physical Click button is which depends on firmware and mounting and cannot be
+detected, so if shifting feels backwards, swap the two **Shifter buttons** entries.
 
 ### Pairing once instead of every time
 

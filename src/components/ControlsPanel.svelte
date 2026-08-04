@@ -1,0 +1,221 @@
+<script lang="ts">
+  /**
+   * Remapping: what each key and each Click button does.
+   *
+   * Keys are captured rather than typed. Asking someone to write "arrowright"
+   * invites the one typo that silently does nothing, and a captured key is
+   * exactly the key they will press mid-ride.
+   */
+  import { ACTION_LABELS, RIDE_ACTIONS, type RideAction } from '../lib/controls/actions'
+  import {
+    DEFAULT_BINDINGS,
+    describeKey,
+    normaliseKey,
+    type Bindings,
+  } from '../lib/controls/bindings'
+
+  interface Props {
+    bindings: Bindings
+    onChange: (bindings: Bindings) => void
+  }
+
+  let { bindings, onChange }: Props = $props()
+
+  let capturing = $state(false)
+
+  const rows = $derived(
+    Object.entries(bindings.keys).sort(([a], [b]) => describeKey(a).localeCompare(describeKey(b))),
+  )
+
+  function setKey(key: string, action: RideAction): void {
+    onChange({ ...bindings, keys: { ...bindings.keys, [key]: action } })
+  }
+
+  function removeKey(key: string): void {
+    const keys = { ...bindings.keys }
+    delete keys[key]
+    onChange({ ...bindings, keys })
+  }
+
+  function setClick(side: 'up' | 'down', action: RideAction): void {
+    onChange({ ...bindings, click: { ...bindings.click, [side]: action } })
+  }
+
+  function capture(event: KeyboardEvent): void {
+    event.preventDefault()
+    event.stopPropagation()
+    capturing = false
+    if (event.key === 'Escape') return
+    // A new key lands on "nothing" so a mis-capture cannot do something
+    // surprising before it has been given a meaning.
+    setKey(normaliseKey(event.key), 'nothing')
+  }
+</script>
+
+<details>
+  <summary>Controls</summary>
+
+  <div class="grid">
+    <fieldset>
+      <legend>Shifter buttons</legend>
+      <label>
+        One button
+        <select
+          value={bindings.click.up}
+          onchange={(e) => setClick('up', e.currentTarget.value as RideAction)}
+        >
+          {#each RIDE_ACTIONS as action (action)}
+            <option value={action}>{ACTION_LABELS[action]}</option>
+          {/each}
+        </select>
+      </label>
+      <label>
+        The other
+        <select
+          value={bindings.click.down}
+          onchange={(e) => setClick('down', e.currentTarget.value as RideAction)}
+        >
+          {#each RIDE_ACTIONS as action (action)}
+            <option value={action}>{ACTION_LABELS[action]}</option>
+          {/each}
+        </select>
+      </label>
+      <p class="hint">
+        Which physical button is which depends on the firmware and how the unit is mounted, so
+        there is nothing to detect — press one, see what moves, and swap these if it is the wrong
+        way round.
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Keyboard</legend>
+
+      {#each rows as [key, action] (key)}
+        <div class="row">
+          <kbd>{describeKey(key)}</kbd>
+          <select value={action} onchange={(e) => setKey(key, e.currentTarget.value as RideAction)}>
+            {#each RIDE_ACTIONS as option (option)}
+              <option value={option}>{ACTION_LABELS[option]}</option>
+            {/each}
+          </select>
+          <button
+            class="ghost"
+            onclick={() => removeKey(key)}
+            aria-label={`Unbind ${describeKey(key)}`}
+          >
+            ✕
+          </button>
+        </div>
+      {/each}
+
+      {#if rows.length === 0}
+        <p class="hint">Nothing bound. The buttons on screen still work.</p>
+      {/if}
+
+      <div class="row add">
+        <button onclick={() => (capturing = true)} onkeydown={capturing ? capture : undefined}>
+          {capturing ? 'Press a key…' : 'Add a key'}
+        </button>
+        <button class="ghost" onclick={() => onChange(structuredClone(DEFAULT_BINDINGS))}>
+          Reset to defaults
+        </button>
+      </div>
+    </fieldset>
+  </div>
+</details>
+
+<style>
+  details {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  summary {
+    padding: 0.6rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    user-select: none;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    gap: var(--gap);
+    padding: 0 0.9rem 0.9rem;
+  }
+
+  fieldset {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.7rem 0.9rem 0.9rem;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  legend {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 0 0.3rem;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.88rem;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .row select {
+    flex: 1;
+  }
+
+  .add {
+    margin-top: 0.35rem;
+  }
+
+  kbd {
+    min-width: 5.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--bg);
+  }
+
+  select {
+    background: var(--bg);
+    color: inherit;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 0.85rem;
+  }
+
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .hint {
+    margin: 0.2rem 0 0;
+    font-size: 0.76rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+</style>

@@ -7,33 +7,23 @@
  * into NaN with no obvious cause.
  */
 
+import { DEFAULT_BINDINGS, sanitizeBindings, type Bindings } from './controls/bindings'
 import { DEFAULT_RIDER, type RiderSettings } from './physics/constants'
 import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from './physics/gears'
 
 const STORAGE_KEY = 'bikeathome.settings.v1'
 
-export interface ShifterSettings {
-  /**
-   * Swap which of the Click's two buttons shifts up. Which physical button
-   * reports as which varies with firmware and with how the unit is mounted,
-   * and there is no way to know from here — so it is the rider's to set.
-   * The keyboard is unaffected: `+` is always a harder gear.
-   */
-  swapButtons: boolean
-}
-
 export interface AppSettings {
   rider: RiderSettings
   drivetrain: DrivetrainSettings
-  shifter: ShifterSettings
+  /** What each key and each Click button does. */
+  bindings: Bindings
 }
-
-export const DEFAULT_SHIFTER: ShifterSettings = { swapButtons: false }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   rider: DEFAULT_RIDER,
   drivetrain: DEFAULT_DRIVETRAIN,
-  shifter: DEFAULT_SHIFTER,
+  bindings: DEFAULT_BINDINGS,
 }
 
 /** Bounds are generous — they exist to stop nonsense, not to police riders. */
@@ -47,7 +37,7 @@ const LIMITS = {
 export function sanitizeSettings(raw: unknown): AppSettings {
   if (typeof raw !== 'object' || raw === null) return DEFAULT_SETTINGS
 
-  const input = raw as Partial<Record<keyof AppSettings, unknown>>
+  const input = raw as Partial<Record<keyof AppSettings | 'shifter', unknown>>
   const rider = (input.rider ?? {}) as Partial<Record<keyof RiderSettings, unknown>>
   const drivetrain = (input.drivetrain ?? {}) as Partial<
     Record<keyof DrivetrainSettings, unknown>
@@ -68,9 +58,13 @@ export function sanitizeSettings(raw: unknown): AppSettings {
       ),
       cogTeeth: integer(drivetrain.cogTeeth, DEFAULT_DRIVETRAIN.cogTeeth, LIMITS.teeth),
     },
-    shifter: {
-      swapButtons: ((input.shifter ?? {}) as Partial<ShifterSettings>).swapButtons === true,
-    },
+    // `shifter.swapButtons` was the old way of saying the same thing, and a
+    // rider who had ticked it should not have to find the new control to get
+    // their shifting back.
+    bindings: sanitizeBindings(
+      input.bindings,
+      ((input.shifter ?? {}) as { swapButtons?: unknown }).swapButtons === true,
+    ),
   }
 }
 

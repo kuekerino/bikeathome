@@ -385,3 +385,58 @@ describe('manual watt mode', () => {
     expect(engine.snapshot().routeGradient).toBeCloseTo(5, 1)
   })
 })
+
+describe('bound controls', () => {
+  function riding() {
+    const engine = new RideEngine({ autoPauseSeconds: 0 })
+    const trainer = new FakeTrainer()
+    engine.attachTrainer(trainer)
+    engine.setRoute(flatRoute(2000))
+    engine.start()
+    engine.tick(0)
+    return { engine, trainer }
+  }
+
+  it('runs whatever the action says', () => {
+    const { engine } = riding()
+    const gear = engine.snapshot().gear
+    engine.perform('shiftUp')
+    expect(engine.snapshot().gear).toBe(gear + 1)
+    engine.perform('powerUp50')
+    expect(engine.snapshot().targetPowerW).toBeGreaterThan(0)
+  })
+
+  it('does nothing for the action that means nothing', () => {
+    const { engine } = riding()
+    const before = engine.snapshot()
+    engine.perform('nothing')
+    expect(engine.snapshot().gear).toBe(before.gear)
+    expect(engine.snapshot().targetPowerW).toBeNull()
+  })
+
+  it('sends a shifter button through the bindings, not straight to the gears', () => {
+    const engine = new RideEngine({ autoPauseSeconds: 0 })
+    engine.setRoute(flatRoute(2000))
+    engine.bindings = { keys: {}, click: { up: 'powerUp10', down: 'shiftDown' } }
+
+    const shifter = new FakeShifter()
+    engine.addShifter(shifter)
+
+    const gear = engine.snapshot().gear
+    shifter.press(1)
+    // The "up" button was bound to watts, so the gear must not have moved.
+    expect(engine.snapshot().gear).toBe(gear)
+    expect(engine.snapshot().targetPowerW).toBe(10)
+
+    shifter.press(-1)
+    expect(engine.snapshot().gear).toBe(gear - 1)
+  })
+
+  it('toggles pause both ways', () => {
+    const { engine } = riding()
+    engine.perform('togglePause')
+    expect(engine.snapshot().status).toBe('paused')
+    engine.perform('togglePause')
+    expect(engine.snapshot().status).toBe('riding')
+  })
+})

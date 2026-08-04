@@ -5,11 +5,11 @@
 
 import { FtmsTrainer } from './lib/ble/ftmsTrainer'
 import { withTimeout } from './lib/ble/gatt'
-import { KeyboardShifter } from './lib/ble/keyboardShifter'
 import { canResumePairings, loadKnownDevices, pick, rememberDevice } from './lib/ble/knownDevices'
 import { SimulatedTrainer } from './lib/ble/simulatedTrainer'
 import type { Shifter, Trainer } from './lib/ble/types'
 import { ZwiftClick } from './lib/ble/zwiftClick'
+import { KeyboardControls } from './lib/controls/keyboard'
 import { parseGpx } from './lib/gpx/parser'
 import { Route } from './lib/gpx/route'
 import { RideEngine } from './lib/ride/engine'
@@ -24,7 +24,7 @@ export const engine = new RideEngine()
 export const recorder = new RideRecorder()
 
 /** Always available, even with a Click paired, as a fallback mid-ride. */
-export const keyboardShifter = new KeyboardShifter()
+export const keyboard = new KeyboardControls()
 export const zwiftClick = new ZwiftClick()
 
 let simulated: SimulatedTrainer | null = null
@@ -33,8 +33,8 @@ let ftms: FtmsTrainer | null = null
 export function startSession(): () => void {
   applySettings(loadSettings())
 
-  void keyboardShifter.connect()
-  engine.addShifter(keyboardShifter)
+  void keyboard.connect()
+  keyboard.onaction = (action) => engine.perform(action)
 
   const timer = setInterval(() => {
     // The engine wants a monotonic clock so a system time change cannot make
@@ -46,7 +46,7 @@ export function startSession(): () => void {
 
   return () => {
     clearInterval(timer)
-    void keyboardShifter.disconnect()
+    void keyboard.disconnect()
   }
 }
 
@@ -80,7 +80,8 @@ export function applySettings(settings: AppSettings): void {
   // The trainer re-adds rolling and drag on top of whatever gradient it is
   // given, so it needs the same coefficients the app subtracted out.
   ftms?.configure(settings.rider)
-  zwiftClick.configure(settings.shifter)
+  engine.bindings = settings.bindings
+  keyboard.configure(settings.bindings)
   saveSettings(settings)
 }
 

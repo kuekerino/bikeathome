@@ -24,6 +24,8 @@ import {
 } from '../physics/gears'
 import { MOTION_AT_REST, stepMotion, type MotionState } from '../physics/motion'
 import type { Shifter, Trainer, TrainerData } from '../ble/types'
+import { POWER_STEP, type RideAction } from '../controls/actions'
+import { DEFAULT_BINDINGS, type Bindings } from '../controls/bindings'
 
 export type RideStatus = 'idle' | 'ready' | 'riding' | 'paused' | 'finished'
 
@@ -62,6 +64,7 @@ export interface RideSnapshot {
 export interface RideEngineOptions {
   rider?: RiderSettings
   drivetrain?: DrivetrainSettings
+  bindings?: Bindings
   /** Seconds of not pedalling before the clock stops. Zero disables it. */
   autoPauseSeconds?: number
 }
@@ -69,6 +72,7 @@ export interface RideEngineOptions {
 export class RideEngine {
   rider: RiderSettings
   drivetrain: DrivetrainSettings
+  bindings: Bindings
   autoPauseSeconds: number
 
   /** Reports a failed write to the trainer; the device reports link state itself. */
@@ -102,6 +106,7 @@ export class RideEngine {
   constructor(options: RideEngineOptions = {}) {
     this.rider = options.rider ?? DEFAULT_RIDER
     this.drivetrain = options.drivetrain ?? DEFAULT_DRIVETRAIN
+    this.bindings = options.bindings ?? DEFAULT_BINDINGS
     this.autoPauseSeconds = options.autoPauseSeconds ?? 5
   }
 
@@ -123,7 +128,11 @@ export class RideEngine {
    */
   addShifter(shifter: Shifter): () => void {
     this.shifters.add(shifter)
-    shifter.onshift = (direction) => this.shift(direction)
+    // A shifter reports which of its two buttons was pressed. What that button
+    // means is the rider's to decide, so it goes through the bindings rather
+    // than straight to the gears.
+    shifter.onshift = (direction) =>
+      this.perform(direction === 1 ? this.bindings.click.up : this.bindings.click.down)
     this.notify()
 
     return () => {
@@ -186,6 +195,36 @@ export class RideEngine {
 
   shift(direction: 1 | -1): void {
     this.setGear(shiftGear(this.gear, direction))
+  }
+
+  /** Runs whatever a key or a button was bound to. */
+  perform(action: RideAction): void {
+    const step = POWER_STEP[action]
+    if (step !== undefined) {
+      this.nudgeTargetPower(step)
+      return
+    }
+
+    switch (action) {
+      case 'shiftUp':
+        this.shift(1)
+        return
+      case 'shiftDown':
+        this.shift(-1)
+        return
+      case 'togglePower':
+        this.setTargetPower(
+          this.targetPowerW === null ? Math.max(50, Math.round(this.latest.powerW ?? 150)) : null,
+        )
+        return
+      case 'togglePause':
+        if (this.status === 'riding') this.pause()
+        else if (this.status === 'paused') this.resume()
+        else this.start()
+        return
+      case 'nothing':
+        return
+    }
   }
 
   /**

@@ -1,26 +1,31 @@
 /**
- * The keyboard as a shifter. Always available alongside whatever hardware is
- * paired: useful in demo mode, and worth keeping during a real ride as a
- * fallback for when the Click drops off mid-climb.
+ * The keyboard as a general control surface.
+ *
+ * Always live alongside whatever hardware is paired: useful in demo mode, and
+ * worth keeping during a real ride as a fallback for when the Click drops off
+ * mid-climb.
  */
 
-import type { ConnectionState, Shifter } from './types'
+import type { ConnectionState, Device } from '../ble/types'
+import type { RideAction } from './actions'
+import { actionForKey, DEFAULT_BINDINGS, type Bindings } from './bindings'
 
-const UP_KEYS = new Set(['+', '=', 'ArrowUp'])
-const DOWN_KEYS = new Set(['-', '_', 'ArrowDown'])
-
-export class KeyboardShifter implements Shifter {
+export class KeyboardControls implements Device {
   readonly label = 'Keyboard'
 
-  onshift: ((direction: 1 | -1) => void) | null = null
-  onbattery: ((percent: number) => void) | null = null
+  onaction: ((action: RideAction) => void) | null = null
   onstate: ((state: ConnectionState, detail?: string) => void) | null = null
 
   private connection: ConnectionState = 'disconnected'
+  private bindings: Bindings = DEFAULT_BINDINGS
   private readonly handler = (event: KeyboardEvent) => this.handle(event)
 
   get state(): ConnectionState {
     return this.connection
+  }
+
+  configure(bindings: Bindings): void {
+    this.bindings = bindings
   }
 
   async connect(): Promise<void> {
@@ -40,12 +45,13 @@ export class KeyboardShifter implements Shifter {
     if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
     if (isTyping(event.target)) return
 
-    const direction = UP_KEYS.has(event.key) ? 1 : DOWN_KEYS.has(event.key) ? -1 : 0
-    if (direction === 0) return
+    const action = actionForKey(this.bindings, event.key)
+    if (action === undefined || action === 'nothing') return
 
-    // Stop the arrows scrolling the dashboard out from under the rider.
+    // Stop the arrows scrolling the dashboard out from under the rider, and
+    // space from pressing whatever button happens to have focus.
     event.preventDefault()
-    this.onshift?.(direction)
+    this.onaction?.(action)
   }
 
   private setState(state: ConnectionState, detail?: string): void {

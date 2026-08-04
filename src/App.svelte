@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import type { ConnectionState } from './lib/ble/types'
   import ConnectPanel, { type DeviceRow } from './components/ConnectPanel.svelte'
+  import ControlsPanel from './components/ControlsPanel.svelte'
   import Dashboard from './components/Dashboard.svelte'
   import ElevationProfile from './components/ElevationProfile.svelte'
   import PowerPanel from './components/PowerPanel.svelte'
@@ -234,6 +235,11 @@
   {/if}
 
   <SettingsPanel {settings} onChange={updateSettings} />
+
+  <ControlsPanel
+    bindings={settings.bindings}
+    onChange={(bindings) => updateSettings({ ...settings, bindings })}
+  />
 
   <footer>
     {#if virtualShifting}

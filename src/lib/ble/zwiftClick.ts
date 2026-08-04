@@ -42,12 +42,6 @@ export class ZwiftClick implements Shifter {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempts = 0
   private closing = false
-  private swapButtons = false
-
-  /** Which physical button shifts up is the rider's call, not ours. */
-  configure({ swapButtons }: { swapButtons: boolean }): void {
-    this.swapButtons = swapButtons
-  }
 
   get label(): string {
     return this.name
@@ -202,9 +196,8 @@ export class ZwiftClick implements Shifter {
       return
     }
 
-    for (const direction of this.shifts.update(message)) {
-      this.onshift?.(this.swapButtons ? ((-direction | 0) as 1 | -1) : direction)
-    }
+    // Which button this is, not what it means: the meaning is bound elsewhere.
+    for (const direction of this.shifts.update(message)) this.onshift?.(direction)
   }
 
   private readonly onDropped = (): void => {

@@ -61,16 +61,28 @@ describe('sanitizeSettings', () => {
   })
 })
 
-describe('shifter settings', () => {
-  it('defaults to unswapped, including for settings stored before it existed', () => {
-    expect(sanitizeSettings({ rider: { massKg: 80 } }).shifter.swapButtons).toBe(false)
+describe('control bindings', () => {
+  it('gives the defaults to settings stored before bindings existed', () => {
+    expect(sanitizeSettings({ rider: { massKg: 80 } }).bindings.click).toEqual({
+      up: 'shiftUp',
+      down: 'shiftDown',
+    })
   })
 
-  it('only accepts a real true', () => {
-    // Anything truthy-but-not-true came from somewhere that is not this app.
-    expect(sanitizeSettings({ shifter: { swapButtons: true } }).shifter.swapButtons).toBe(true)
-    for (const value of ['true', 1, {}, null]) {
-      expect(sanitizeSettings({ shifter: { swapButtons: value } }).shifter.swapButtons).toBe(false)
-    }
+  it('carries a swapped Click across from the setting it replaced', () => {
+    // Someone who ticked the old checkbox should not have to find the new
+    // control to get their shifting back.
+    expect(sanitizeSettings({ shifter: { swapButtons: true } }).bindings.click).toEqual({
+      up: 'shiftDown',
+      down: 'shiftUp',
+    })
+  })
+
+  it('prefers real bindings over the setting they replaced', () => {
+    const settings = sanitizeSettings({
+      shifter: { swapButtons: true },
+      bindings: { click: { up: 'powerUp10', down: 'powerDown10' } },
+    })
+    expect(settings.bindings.click).toEqual({ up: 'powerUp10', down: 'powerDown10' })
   })
 })
