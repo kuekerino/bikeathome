@@ -128,9 +128,11 @@ Two ways to skip all of this:
 The build is static files with relative asset paths, so it works from any host, at a
 domain root or a subpath, with no configuration.
 
-`.github/workflows/pages.yml` publishes to GitHub Pages on every push to `main`, and
-enables Pages on the repository the first time it runs. Fork it and it should deploy
-itself. Cloudflare Pages and Netlify work just as well; the build command is
+`.github/workflows/pages.yml` publishes to GitHub Pages on every push to `main`. Turn
+Pages on first under **Settings → Pages → Source: GitHub Actions** — the workflow cannot
+do it for you, because creating a Pages site needs repository-admin rights that
+`GITHUB_TOKEN` does not have. Until you do, the deploy fails on a 404 with a green
+build above it. Cloudflare Pages and Netlify work just as well; the build command is
 `npm run build` and the output directory is `dist`.
 
 ## Licence
