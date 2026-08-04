@@ -1,8 +1,9 @@
 # Publishes the built site to GitHub Pages on every push to main.
 #
-# Requires Pages to be switched on once: Settings -> Pages -> Source: GitHub
-# Actions. Without that the deploy step fails with a 404, which reads as a
-# broken workflow rather than a missing setting.
+# configure-pages runs with `enablement: true`, so it turns Pages on itself the
+# first time rather than failing with a 404 that reads as a broken workflow
+# rather than an unset repository setting. That needs the `pages: write`
+# permission below, and a public repository or a plan that includes Pages.
 #
 # The site lands on a project subpath (/bikeathome/). That works because the
 # Vite build uses a relative base, so nothing here needs to know the URL.
@@ -37,6 +38,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
