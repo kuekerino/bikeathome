@@ -161,6 +161,23 @@ export function buildSimulationParameters(
   return frame
 }
 
+/**
+ * Set Target Power (0x05) — ERG. The trainer holds this wattage whatever the
+ * rider's cadence, so gradient stops driving resistance until control is
+ * handed back with a simulation frame.
+ *
+ * One sint16, little-endian, in whole watts.
+ */
+export function buildTargetPower(watts: number): Uint8Array {
+  const frame = new Uint8Array(3)
+  const view = new DataView(frame.buffer)
+
+  view.setUint8(0, ControlOpcode.setTargetPower)
+  view.setInt16(1, clampInt(watts, -32768, 32767), true)
+
+  return frame
+}
+
 export function buildRequestControl(): Uint8Array {
   return new Uint8Array([ControlOpcode.requestControl])
 }

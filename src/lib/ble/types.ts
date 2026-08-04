@@ -33,6 +33,13 @@ export interface Trainer extends Device {
    * link rather than assuming the caller has done it for them.
    */
   setSimulation(gradientPct: number): Promise<void>
+  /**
+   * Hold this power regardless of gradient or cadence — ERG mode. `null` hands
+   * control back to {@link Trainer.setSimulation}.
+   *
+   * Same contract as `setSimulation`: called freely, coalesced by the device.
+   */
+  setTargetPower(watts: number | null): Promise<void>
   ondata: ((data: TrainerData) => void) | null
 }
 

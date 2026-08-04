@@ -10,6 +10,7 @@ function snapshot(overrides: Partial<RideSnapshot> = {}): RideSnapshot {
     routeDistance: 1000,
     speedMs: 0,
     powerW: 0,
+    targetPowerW: null,
     cadenceRpm: 0,
     gear: 12,
     gearRatio: 1,

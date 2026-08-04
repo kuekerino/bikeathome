@@ -4,6 +4,7 @@ import {
   buildSimulationParameters,
   buildStart,
   buildStop,
+  buildTargetPower,
   ControlOpcode,
   parseControlResponse,
   parseFeatures,
@@ -189,5 +190,19 @@ describe('parseFeatures', () => {
 
   it('ignores a short frame', () => {
     expect(parseFeatures(view(0, 0, 0, 0))).toBeNull()
+  })
+})
+
+describe('buildTargetPower', () => {
+  it('encodes watts as a little-endian sint16 after the opcode', () => {
+    // 200 W -> 0xC8 0x00. Checked against the FTMS spec, not against a device.
+    expect([...buildTargetPower(200)]).toEqual([0x05, 0xc8, 0x00])
+    expect([...buildTargetPower(1)]).toEqual([0x05, 0x01, 0x00])
+    expect([...buildTargetPower(300)]).toEqual([0x05, 0x2c, 0x01])
+  })
+
+  it('is three bytes, whatever the value', () => {
+    expect(buildTargetPower(0)).toHaveLength(3)
+    expect(buildTargetPower(2000)).toHaveLength(3)
   })
 })

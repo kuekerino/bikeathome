@@ -12,6 +12,7 @@ import {
   buildSimulationParameters,
   buildStart,
   buildStop,
+  buildTargetPower,
   FITNESS_MACHINE_CONTROL_POINT,
   FITNESS_MACHINE_FEATURE,
   FTMS_SERVICE,
@@ -56,6 +57,9 @@ export class FtmsTrainer implements Trainer {
 
   private desiredGradient = 0
   private sentGradient: number | null = null
+  /** Watts to hold in ERG, or `null` to simulate the gradient instead. */
+  private desiredPower: number | null = null
+  private sentPower: number | null = null
   private lastSentAt = 0
   private flushTimer: ReturnType<typeof setInterval> | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -143,12 +147,25 @@ export class FtmsTrainer implements Trainer {
     this.device = null
     this.controlPoint = null
     this.sentGradient = null
+    this.sentPower = null
     this.setState('disconnected')
   }
 
   /** Records the wanted gradient. The flush timer decides when it goes out. */
   async setSimulation(gradientPct: number): Promise<void> {
     this.desiredGradient = gradientPct
+  }
+
+  /**
+   * Switches between holding a power and simulating the gradient. Leaving ERG
+   * clears the sent gradient so the next flush resends it — the trainer has
+   * been in power mode and no longer knows what slope it was on.
+   */
+  async setTargetPower(watts: number | null): Promise<void> {
+    if (watts === this.desiredPower) return
+    this.desiredPower = watts
+    if (watts === null) this.sentGradient = null
+    else this.sentPower = null
   }
 
   /** Everything needed to go from a connected GATT server to a usable trainer. */
@@ -188,6 +205,7 @@ export class FtmsTrainer implements Trainer {
       this.reconnectAttempts = 0
       // Force the next flush to resend: the trainer forgot where it was.
       this.sentGradient = null
+      this.sentPower = null
       this.setState('connected')
     } catch {
       this.scheduleReconnect()
@@ -240,8 +258,21 @@ export class FtmsTrainer implements Trainer {
 
   private async flush(): Promise<void> {
     if (!this.controlPoint) return
-
     const now = Date.now()
+
+    const power = this.desiredPower
+    if (power !== null) {
+      if (power === this.sentPower && now - this.lastSentAt < HEARTBEAT_MS) return
+      try {
+        await this.write(buildTargetPower(power))
+        this.sentPower = power
+        this.lastSentAt = now
+      } catch (error) {
+        this.setState('error', describe(error))
+      }
+      return
+    }
+
     const changed =
       this.sentGradient === null ||
       Math.abs(this.desiredGradient - this.sentGradient) >= GRADIENT_EPSILON

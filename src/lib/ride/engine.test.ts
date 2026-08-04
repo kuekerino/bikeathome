@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_DRIVETRAIN } from '../physics/gears'
 import { climbRoute, FakeShifter, FakeTrainer, flatRoute } from '../../testing/fixtures'
-import { RideEngine, type RideSnapshot } from './engine'
+import { POWER_LIMITS, RideEngine, type RideSnapshot } from './engine'
 
 /** Drives the engine forward in fixed steps from a fixed start time. */
 class Clock {
@@ -305,5 +305,83 @@ describe('subscription', () => {
     stop()
     new Clock(engine).advance(1)
     expect(seen).toHaveLength(count)
+  })
+})
+
+describe('manual watt mode', () => {
+  function riding() {
+    const engine = new RideEngine({ autoPauseSeconds: 0 })
+    const trainer = new FakeTrainer()
+    engine.attachTrainer(trainer)
+    engine.setRoute(climbRoute(2000, 5))
+    engine.start()
+    engine.tick(0)
+    engine.tick(1000)
+    return { engine, trainer }
+  }
+
+  it('sends watts instead of a gradient once engaged', () => {
+    const { engine, trainer } = riding()
+    const gradientsBefore = trainer.gradients.length
+
+    engine.setTargetPower(200)
+    expect(trainer.lastPowerTarget).toBe(200)
+
+    engine.tick(2000)
+    // The trainer cannot be in both modes; the slope stops going out.
+    expect(trainer.gradients.length).toBe(gradientsBefore)
+  })
+
+  it('hands the gradient back when switched off', () => {
+    const { engine, trainer } = riding()
+    engine.setTargetPower(200)
+    engine.setTargetPower(null)
+
+    expect(trainer.lastPowerTarget).toBeNull()
+    engine.tick(2000)
+    expect(trainer.lastGradient).toBeCloseTo(engine.snapshot().trainerGradient, 6)
+  })
+
+  it('does not repeat the mode change on every tick', () => {
+    const { engine, trainer } = riding()
+    const before = trainer.powerTargets.length
+    engine.tick(2000)
+    engine.tick(3000)
+    expect(trainer.powerTargets.length).toBe(before)
+  })
+
+  it('steps from the current effort when nothing is set yet', () => {
+    const { engine, trainer } = riding()
+    trainer.send({ powerW: 187 })
+    engine.nudgeTargetPower(10)
+    expect(engine.snapshot().targetPowerW).toBe(197)
+  })
+
+  it('steps from the target once there is one, not from what the rider is doing', () => {
+    const { engine, trainer } = riding()
+    engine.setTargetPower(200)
+    trainer.send({ powerW: 150 })
+    engine.nudgeTargetPower(50)
+    expect(engine.snapshot().targetPowerW).toBe(250)
+  })
+
+  it('refuses a target that no flywheel should be given', () => {
+    const { engine } = riding()
+    engine.setTargetPower(-40)
+    expect(engine.snapshot().targetPowerW).toBe(0)
+    engine.setTargetPower(99_999)
+    expect(engine.snapshot().targetPowerW).toBe(POWER_LIMITS.max)
+  })
+
+  it('still moves the rider on the route gradient, not the target', () => {
+    // ERG changes what the legs feel; where the rider ends up still comes from
+    // the watts reported and the real slope.
+    const { engine, trainer } = riding()
+    engine.setTargetPower(250)
+    trainer.send({ powerW: 250 })
+    engine.tick(2000)
+    engine.tick(3000)
+    expect(engine.snapshot().distance).toBeGreaterThan(0)
+    expect(engine.snapshot().routeGradient).toBeCloseTo(5, 1)
   })
 })

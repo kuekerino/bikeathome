@@ -48,6 +48,8 @@ export class FakeTrainer implements Trainer {
 
   /** Every gradient the engine has asked for, in order. */
   readonly gradients: number[] = []
+  /** Every ERG target, in order. `null` means "back to the gradient". */
+  readonly powerTargets: (number | null)[] = []
 
   async connect(): Promise<void> {
     this.state = 'connected'
@@ -59,6 +61,14 @@ export class FakeTrainer implements Trainer {
 
   async setSimulation(gradientPct: number): Promise<void> {
     this.gradients.push(gradientPct)
+  }
+
+  async setTargetPower(watts: number | null): Promise<void> {
+    this.powerTargets.push(watts)
+  }
+
+  get lastPowerTarget(): number | null | undefined {
+    return this.powerTargets[this.powerTargets.length - 1]
   }
 
   /** Pretend the trainer pushed a data notification. */

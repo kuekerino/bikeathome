@@ -30,6 +30,9 @@ export type RideStatus = 'idle' | 'ready' | 'riding' | 'paused' | 'finished'
 /** Below this, with no power, the rider counts as stopped. */
 const STOPPED_SPEED_MS = 0.5
 
+/** Nobody is holding 2 kW, and a typo should not be sent to a flywheel. */
+export const POWER_LIMITS = { min: 0, max: 2000 } as const
+
 export interface RideSnapshot {
   status: RideStatus
   routeName: string | null
@@ -46,6 +49,8 @@ export interface RideSnapshot {
   routeGradient: number
   /** What the trainer is being asked to simulate, in percent. */
   trainerGradient: number
+  /** Watts the trainer is being told to hold, or `null` when simulating. */
+  targetPowerW: number | null
   elapsedSeconds: number
   elevation: number
   climbed: number
@@ -75,6 +80,9 @@ export class RideEngine {
   private gear = DEFAULT_GEAR
   private latest: TrainerData = {}
   private trainerGradient = 0
+  private targetPowerW: number | null = null
+  /** Whether the trainer was last told to hold a power rather than a slope. */
+  private ergEngaged = false
   private elapsedMs = 0
   private climbed = 0
   private lastElevation: number | null = null
@@ -180,6 +188,36 @@ export class RideEngine {
     this.setGear(shiftGear(this.gear, direction))
   }
 
+  /**
+   * Holds a fixed wattage instead of simulating the slope — ERG. `null` gives
+   * the gradient back.
+   *
+   * Speed is unaffected in the sense that matters: it still comes from the
+   * watts the trainer reports and the route's real gradient. ERG changes what
+   * the legs feel, not where the rider ends up.
+   */
+  setTargetPower(watts: number | null): void {
+    const next =
+      watts === null
+        ? null
+        : Math.round(Math.min(POWER_LIMITS.max, Math.max(POWER_LIMITS.min, watts)))
+    if (next === this.targetPowerW) return
+
+    this.targetPowerW = next
+    this.pushResistance()
+    this.notify()
+  }
+
+  /** Steps the target by `delta` watts, starting from the current effort. */
+  nudgeTargetPower(delta: number): void {
+    const from = this.targetPowerW ?? Math.round(this.latest.powerW ?? 0)
+    this.setTargetPower(from + delta)
+  }
+
+  get targetPower(): number | null {
+    return this.targetPowerW
+  }
+
   setGear(gear: number): void {
     const next = clampGear(gear)
     if (next === this.gear) return
@@ -256,6 +294,7 @@ export class RideEngine {
       relativeRatio: relativeRatio(this.gear, this.drivetrain),
       routeGradient: position?.gradient ?? 0,
       trainerGradient: this.trainerGradient,
+      targetPowerW: this.targetPowerW,
       elapsedSeconds: this.elapsedMs / 1000,
       elevation: position?.ele ?? 0,
       climbed: this.climbed,
@@ -291,13 +330,38 @@ export class RideEngine {
     )
   }
 
+  /**
+   * Sends whichever kind of resistance is in force. ERG wins when set: the
+   * gradient is still tracked for the dashboard but never reaches the trainer,
+   * because a trainer cannot be in both modes at once.
+   */
   private pushGradient(gradientPct: number): void {
-    this.trainerGradient = gradientPct
+    this.trainerGradient = this.targetPowerW === null ? gradientPct : 0
+    this.pushResistance()
+  }
+
+  private pushResistance(): void {
     const trainer = this.trainer
     if (!trainer) return
+
+    const failed = (error: unknown) => this.onerror?.(error)
+
+    if (this.targetPowerW !== null) {
+      this.ergEngaged = true
+      trainer.setTargetPower(this.targetPowerW).catch(failed)
+      return
+    }
+
+    // Leaving ERG is announced once rather than on every tick: a gradient
+    // frame is the thing that has to stay immediate, since a shift is felt as
+    // soon as it is sent.
+    if (this.ergEngaged) {
+      this.ergEngaged = false
+      trainer.setTargetPower(null).catch(failed)
+    }
     // Called every tick by design: the device layer knows its own link rate
     // and coalesces. Failures surface through the device's own state.
-    trainer.setSimulation(gradientPct).catch((error: unknown) => this.onerror?.(error))
+    trainer.setSimulation(this.trainerGradient).catch(failed)
   }
 
   private trackClimbing(): void {

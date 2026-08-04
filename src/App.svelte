@@ -4,6 +4,7 @@
   import ConnectPanel, { type DeviceRow } from './components/ConnectPanel.svelte'
   import Dashboard from './components/Dashboard.svelte'
   import ElevationProfile from './components/ElevationProfile.svelte'
+  import PowerPanel from './components/PowerPanel.svelte'
   import RideControls from './components/RideControls.svelte'
   import RouteLoader from './components/RouteLoader.svelte'
   import RouteMap from './components/RouteMap.svelte'
@@ -221,6 +222,14 @@
       onEnd={() => engine.end()}
       onShift={(direction) => engine.shift(direction)}
       onExport={() => void attempt(exportRide)}
+    />
+
+    <PowerPanel
+      target={ride.targetPowerW}
+      actual={ride.powerW}
+      disabled={trainerState !== 'connected'}
+      onSet={(watts) => engine.setTargetPower(watts)}
+      onNudge={(delta) => engine.nudgeTargetPower(delta)}
     />
   {/if}
 

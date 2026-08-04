@@ -104,6 +104,7 @@ export class SimulatedTrainer implements Trainer {
   private connection: ConnectionState = 'disconnected'
   private timer: ReturnType<typeof setInterval> | null = null
   private gradientPct = 0
+  private targetPowerW: number | null = null
 
   constructor(private options: SimulationOptions = DEFAULT_SIMULATION) {}
 
@@ -133,8 +134,17 @@ export class SimulatedTrainer implements Trainer {
     this.gradientPct = gradientPct
   }
 
+  async setTargetPower(watts: number | null): Promise<void> {
+    this.targetPowerW = watts
+  }
+
   private emit(): void {
-    const { powerW, cadenceRpm, speedKmh } = simulateRider(this.gradientPct, this.options)
+    // In ERG the demo rider holds the commanded watts, the same way a real
+    // trainer does — cadence and gear stop mattering, which is the point.
+    const { powerW, cadenceRpm, speedKmh } =
+      this.targetPowerW === null
+        ? simulateRider(this.gradientPct, this.options)
+        : simulateRider(this.gradientPct, { ...this.options, targetPowerW: this.targetPowerW })
     // Real trainers wobble; a perfectly flat number reads as broken.
     this.ondata?.({
       powerW: Math.max(0, Math.round(jitter(powerW, 0.04))),
