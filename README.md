@@ -73,7 +73,7 @@ chainring and cog your bike is actually in, so the middle of the block feels neu
 - **Click v2 support is best-effort.** The original Click's protocol is well
   documented; newer firmware moved to a different service and button encoding that is
   less firmly established. If shifting misbehaves, the keyboard still works.
-- **Settings and routes are per-browser.** No account, no sync. Switching from your Mac
+- **Settings and routes are per-browser.** No account, no sync. Switching from a laptop
   to a tablet means loading your GPX again.
 - **Elevation is smoothed** over 25 m either side of each point, and gradients are
   clamped to 25%. Raw GPS elevation is noisy enough that per-segment gradients are
@@ -122,22 +122,19 @@ Two ways to skip all of this:
 
 ### Hosted alternatives
 
-`.github/workflows/pages.yml` deploys to GitHub Pages, but it is `workflow_dispatch`
-only — Pages cannot publish from a private repository without a paid GitHub plan, so
-running it on every push would just produce a failing job. Cloudflare Pages and Netlify
-both deploy from a private repo for free; the build command is `npm run build` and the
-output directory is `dist`. The build uses relative asset paths, so it works from a
-subpath or a domain root without configuration.
+The build is static files with relative asset paths, so it works from any host, at a
+domain root or a subpath, with no configuration.
+
+`.github/workflows/pages.yml` publishes to GitHub Pages. It is `workflow_dispatch` only
+— deliberately, so a push never puts a site on the internet by surprise. Enable Pages
+under **Settings → Pages → Source: GitHub Actions**, run the workflow once, and add a
+`push` trigger if you want it automatic thereafter. Cloudflare Pages and Netlify work
+just as well; the build command is `npm run build` and the output directory is `dist`.
 
 ## Licence
 
-None yet — which means all rights reserved, and the repository is private on purpose.
-Public with no licence would be the worst combination: readable by everyone, usable by
-nobody.
-
-Nothing here is copied from another project. The Bluetooth work is built on published
-protocol facts rather than borrowed source — see Credit below — so a licence can be
-added later without untangling anything.
+MIT — see [LICENSE](LICENSE). Use it, change it, ship it. No warranty, and no
+obligation on either side.
 
 ## Development
 

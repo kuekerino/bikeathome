@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "description": "Ride your own GPX routes on a smart trainer, with virtual shifting for single-cog setups",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kuekerino/bikeathome.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
