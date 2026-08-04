@@ -9,6 +9,7 @@
  */
 
 import { BATTERY_SERVICE, clickRequest } from './discovery'
+import { during, writeValue } from './gatt'
 import type { ConnectionState, Shifter } from './types'
 import {
   ClickShiftDetector,
@@ -91,11 +92,11 @@ export class ZwiftClick implements Shifter {
     const server = await this.device?.gatt?.connect()
     if (!server) throw new Error('Could not reach the Click over GATT.')
 
-    const service = await findZwiftService(server)
+    const service = await during('Finding the Click service', () => findZwiftService(server))
     // Whatever the buttons were doing before the drop is no longer true.
     this.shifts.reset()
-    await this.listen(service)
-    await this.shakeHands(service)
+    await during('Subscribing to the Click buttons', () => this.listen(service))
+    await during('Sending the RideOn handshake', () => this.shakeHands(service))
     await this.readBattery(server)
   }
 
@@ -157,7 +158,7 @@ export class ZwiftClick implements Shifter {
     await syncTx.startNotifications()
 
     const syncRx = await service.getCharacteristic(ZWIFT_SYNC_RX)
-    await syncRx.writeValueWithResponse(RIDE_ON as BufferSource)
+    await writeValue(syncRx, RIDE_ON as BufferSource)
   }
 
   private async readBattery(server: BluetoothRemoteGATTServer): Promise<void> {
