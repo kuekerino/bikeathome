@@ -52,8 +52,11 @@ const ShiftMask = {
   downRight: 0x4000,
 } as const
 
+/** Which report format a button message arrived in. */
+export type ButtonSource = 'clickV1' | 'keypadV2'
+
 export type ClickMessage =
-  | { kind: 'buttons'; plus: boolean; minus: boolean }
+  | { kind: 'buttons'; source: ButtonSource; plus: boolean; minus: boolean }
   | { kind: 'battery'; percent: number }
   | { kind: 'keepalive' }
   | { kind: 'disconnect' }
@@ -88,7 +91,7 @@ export function parseClickMessage(bytes: Uint8Array): ClickMessage {
       const plus = fields.get(1)
       const minus = fields.get(2)
       if (plus === undefined && minus === undefined) return { kind: 'ignored', type }
-      return { kind: 'buttons', plus: plus === 0, minus: minus === 0 }
+      return { kind: 'buttons', source: 'clickV1', plus: plus === 0, minus: minus === 0 }
     }
 
     case MessageType.keypadV2: {
@@ -97,6 +100,7 @@ export function parseClickMessage(bytes: Uint8Array): ClickMessage {
       const pressed = (mask: number) => (map & mask) === 0
       return {
         kind: 'buttons',
+        source: 'keypadV2',
         plus: pressed(ShiftMask.upLeft) || pressed(ShiftMask.upRight),
         minus: pressed(ShiftMask.downLeft) || pressed(ShiftMask.downRight),
       }
@@ -126,13 +130,24 @@ export function parseClickMessage(bytes: Uint8Array): ClickMessage {
  * The device repeats the same message while a button is held, so shifting on
  * every message would run through the whole block from one press. Only the
  * released-to-pressed edge counts.
+ *
+ * A device that speaks both report formats will interleave them, and the two
+ * disagree: a press reported as `clickV1` is invisible in the `keypadV2`
+ * bitmap, which therefore reads as released. Tracking one held-state across
+ * both makes a single press look like press, release, press — two shifts from
+ * one click, intermittently, depending on how the reports interleave. So the
+ * first format seen wins and the other is ignored for the rest of the session.
  */
 export class ClickShiftDetector {
   private plus = false
   private minus = false
+  private source: ButtonSource | null = null
 
   update(message: ClickMessage): (1 | -1)[] {
     if (message.kind !== 'buttons') return []
+
+    this.source ??= message.source
+    if (message.source !== this.source) return []
 
     const shifts: (1 | -1)[] = []
     if (message.plus && !this.plus) shifts.push(1)
@@ -147,6 +162,7 @@ export class ClickShiftDetector {
   reset(): void {
     this.plus = false
     this.minus = false
+    this.source = null
   }
 }
 

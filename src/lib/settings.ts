@@ -12,14 +12,28 @@ import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from './physics/gears'
 
 const STORAGE_KEY = 'bikeathome.settings.v1'
 
+export interface ShifterSettings {
+  /**
+   * Swap which of the Click's two buttons shifts up. Which physical button
+   * reports as which varies with firmware and with how the unit is mounted,
+   * and there is no way to know from here — so it is the rider's to set.
+   * The keyboard is unaffected: `+` is always a harder gear.
+   */
+  swapButtons: boolean
+}
+
 export interface AppSettings {
   rider: RiderSettings
   drivetrain: DrivetrainSettings
+  shifter: ShifterSettings
 }
+
+export const DEFAULT_SHIFTER: ShifterSettings = { swapButtons: false }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   rider: DEFAULT_RIDER,
   drivetrain: DEFAULT_DRIVETRAIN,
+  shifter: DEFAULT_SHIFTER,
 }
 
 /** Bounds are generous — they exist to stop nonsense, not to police riders. */
@@ -53,6 +67,9 @@ export function sanitizeSettings(raw: unknown): AppSettings {
         LIMITS.teeth,
       ),
       cogTeeth: integer(drivetrain.cogTeeth, DEFAULT_DRIVETRAIN.cogTeeth, LIMITS.teeth),
+    },
+    shifter: {
+      swapButtons: ((input.shifter ?? {}) as Partial<ShifterSettings>).swapButtons === true,
     },
   }
 }

@@ -4,6 +4,7 @@ import {
   parseClickMessage,
   readHandshake,
   RIDE_ON,
+  type ButtonSource,
   type ClickMessage,
 } from './zwiftClickProtocol'
 
@@ -54,16 +55,19 @@ describe('original Click button reports', () => {
   it('reads the documented vectors', () => {
     expect(parseClickMessage(bytes(0x37, 0x08, 0x00, 0x10, 0x01))).toEqual({
       kind: 'buttons',
+      source: 'clickV1',
       plus: true,
       minus: false,
     })
     expect(parseClickMessage(bytes(0x37, 0x08, 0x01, 0x10, 0x00))).toEqual({
       kind: 'buttons',
+      source: 'clickV1',
       plus: false,
       minus: true,
     })
     expect(parseClickMessage(bytes(0x37, 0x08, 0x01, 0x10, 0x01))).toEqual({
       kind: 'buttons',
+      source: 'clickV1',
       plus: false,
       minus: false,
     })
@@ -72,6 +76,7 @@ describe('original Click button reports', () => {
   it('handles both buttons at once', () => {
     expect(parseClickMessage(bytes(0x37, 0x08, 0x00, 0x10, 0x00))).toEqual({
       kind: 'buttons',
+      source: 'clickV1',
       plus: true,
       minus: true,
     })
@@ -87,15 +92,16 @@ describe('newer keypad reports', () => {
 
   it('reads a cleared bit as a press', () => {
     const upLeft = parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED & ~0x200)))
-    expect(upLeft).toEqual({ kind: 'buttons', plus: true, minus: false })
+    expect(upLeft).toEqual({ kind: 'buttons', source: 'keypadV2', plus: true, minus: false })
 
     const downRight = parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED & ~0x4000)))
-    expect(downRight).toEqual({ kind: 'buttons', plus: false, minus: true })
+    expect(downRight).toEqual({ kind: 'buttons', source: 'keypadV2', plus: false, minus: true })
   })
 
   it('reads nothing pressed when every bit is set', () => {
     expect(parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED)))).toEqual({
       kind: 'buttons',
+      source: 'keypadV2',
       plus: false,
       minus: false,
     })
@@ -149,7 +155,7 @@ describe('other messages', () => {
     // Field 1 is a varint; the 0x0a tag that follows is length-delimited, so
     // the walk should stop there rather than misread the rest.
     const message = parseClickMessage(bytes(0x37, 0x08, 0x00, 0x0a, 0x02, 0xff, 0xff))
-    expect(message).toEqual({ kind: 'buttons', plus: true, minus: false })
+    expect(message).toEqual({ kind: 'buttons', source: 'clickV1', plus: true, minus: false })
   })
 
   it('survives a truncated varint', () => {
@@ -158,10 +164,41 @@ describe('other messages', () => {
 })
 
 describe('ClickShiftDetector', () => {
-  const press = (plus: boolean, minus: boolean): ClickMessage => ({
+  const press = (
+    plus: boolean,
+    minus: boolean,
+    source: ButtonSource = 'clickV1',
+  ): ClickMessage => ({
     kind: 'buttons',
+    source,
     plus,
     minus,
+  })
+
+  it('does not double-shift when both report formats are interleaved', () => {
+    const detector = new ClickShiftDetector()
+    // One physical press, reported in the format this device led with.
+    expect(detector.update(press(true, false, 'clickV1'))).toEqual([1])
+    // The same press is invisible to the other format's bitmap, so taking it
+    // at face value would read as a release and let the next repeat re-fire.
+    expect(detector.update(press(false, false, 'keypadV2'))).toEqual([])
+    expect(detector.update(press(true, false, 'clickV1'))).toEqual([])
+    // Still one shift for one press.
+    expect(detector.update(press(false, false, 'clickV1'))).toEqual([])
+    expect(detector.update(press(true, false, 'clickV1'))).toEqual([1])
+  })
+
+  it('follows whichever format the device leads with', () => {
+    const detector = new ClickShiftDetector()
+    expect(detector.update(press(true, false, 'keypadV2'))).toEqual([1])
+    expect(detector.update(press(true, false, 'clickV1'))).toEqual([])
+  })
+
+  it('relearns the format after a reconnect', () => {
+    const detector = new ClickShiftDetector()
+    detector.update(press(true, false, 'clickV1'))
+    detector.reset()
+    expect(detector.update(press(true, false, 'keypadV2'))).toEqual([1])
   })
 
   it('shifts once per press, not once per message', () => {

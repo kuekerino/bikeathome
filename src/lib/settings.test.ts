@@ -60,3 +60,17 @@ describe('sanitizeSettings', () => {
     expect(sanitizeSettings({ drivetrain: { mode: 'nonsense' } }).drivetrain.mode).toBe('virtual')
   })
 })
+
+describe('shifter settings', () => {
+  it('defaults to unswapped, including for settings stored before it existed', () => {
+    expect(sanitizeSettings({ rider: { massKg: 80 } }).shifter.swapButtons).toBe(false)
+  })
+
+  it('only accepts a real true', () => {
+    // Anything truthy-but-not-true came from somewhere that is not this app.
+    expect(sanitizeSettings({ shifter: { swapButtons: true } }).shifter.swapButtons).toBe(true)
+    for (const value of ['true', 1, {}, null]) {
+      expect(sanitizeSettings({ shifter: { swapButtons: value } }).shifter.swapButtons).toBe(false)
+    }
+  })
+})

@@ -80,6 +80,22 @@
           The gear your bike is physically in. Virtual gears are measured against it, so getting
           it right keeps the middle of the block feeling neutral.
         </p>
+
+        <label class="check">
+          <input
+            type="checkbox"
+            checked={settings.shifter.swapButtons}
+            onchange={(e) =>
+              onChange({
+                ...settings,
+                shifter: { ...settings.shifter, swapButtons: e.currentTarget.checked },
+              })}
+          />
+          <span>
+            <strong>Swap the Click's buttons</strong>
+            <em>If the button you want for a harder gear is giving you an easier one.</em>
+          </span>
+        </label>
       {/if}
     </fieldset>
 
@@ -184,27 +200,35 @@
     font-size: 0.88rem;
   }
 
-  .radio {
+  .radio,
+  .check {
     align-items: flex-start;
     justify-content: flex-start;
     gap: 0.55rem;
     cursor: pointer;
   }
 
-  .radio span {
+  .radio span,
+  .check span {
     display: flex;
     flex-direction: column;
   }
 
-  .radio em {
+  .radio em,
+  .check em {
     font-style: normal;
     font-size: 0.78rem;
     color: var(--muted);
   }
 
-  .radio input {
+  .radio input,
+  .check input {
     margin-top: 0.25rem;
     accent-color: var(--accent);
+  }
+
+  .check {
+    margin-top: 0.35rem;
   }
 
   .pair {

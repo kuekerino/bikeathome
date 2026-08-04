@@ -78,6 +78,7 @@ export function applySettings(settings: AppSettings): void {
   // The trainer re-adds rolling and drag on top of whatever gradient it is
   // given, so it needs the same coefficients the app subtracted out.
   ftms?.configure(settings.rider)
+  zwiftClick.configure(settings.shifter)
   saveSettings(settings)
 }
 
