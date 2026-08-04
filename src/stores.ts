@@ -88,17 +88,22 @@ export async function useSimulatedTrainer(): Promise<Trainer> {
   return simulated
 }
 
-/** Both of these open the browser's device chooser, so both need a click. */
-export async function pairTrainer(): Promise<Trainer> {
+/**
+ * Both of these open the browser's device chooser, so both need a click.
+ *
+ * `showEverything` drops the service filters and lists every Bluetooth device
+ * in range — the way out when a device advertises nothing we match on.
+ */
+export async function pairTrainer(showEverything = false): Promise<Trainer> {
   ftms ??= new FtmsTrainer()
   ftms.configure(loadSettings().rider)
-  await ftms.connect()
+  await ftms.connect(showEverything)
   engine.attachTrainer(ftms)
   return ftms
 }
 
-export async function pairShifter(): Promise<Shifter> {
-  await zwiftClick.connect()
+export async function pairShifter(showEverything = false): Promise<Shifter> {
+  await zwiftClick.connect(showEverything)
   engine.addShifter(zwiftClick)
   return zwiftClick
 }

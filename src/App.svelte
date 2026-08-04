@@ -36,6 +36,9 @@
   let trainerState = $state<ConnectionState>('disconnected')
   let clickState = $state<ConnectionState>('disconnected')
   let clickBattery = $state<number | null>(null)
+  /** Set once a pairing attempt came back empty, to reveal the wider search. */
+  let trainerNotFound = $state(false)
+  let clickNotFound = $state(false)
 
   const bluetooth = bluetoothAvailable()
 
@@ -68,6 +71,9 @@
           ? []
           : [
               ...(bluetooth ? [{ label: 'Pair trainer', run: () => void connectTrainer() }] : []),
+              ...(bluetooth && trainerNotFound
+                ? [{ label: 'Show all devices', run: () => void connectTrainer(true) }]
+                : []),
               { label: 'Use demo trainer', run: () => void connectSimulator() },
             ],
     },
@@ -80,20 +86,28 @@
       detail: clickBattery !== null ? `${clickBattery}%` : virtualShifting ? `gear ${ride.gear}` : 'not needed',
       actions:
         bluetooth && virtualShifting && clickState !== 'connected'
-          ? [{ label: 'Pair Zwift Click', run: () => void connectClick() }]
+          ? [
+              { label: 'Pair Zwift Click', run: () => void connectClick() },
+              ...(clickNotFound
+                ? [{ label: 'Show all devices', run: () => void connectClick(true) }]
+                : []),
+            ]
           : [],
     },
   ])
 
   const browserNote = bluetoothNote(currentPlatform())
 
-  async function attempt(action: () => Promise<void> | void): Promise<void> {
+  /** @returns whether the action got through, so callers can offer a way out. */
+  async function attempt(action: () => Promise<void> | void): Promise<boolean> {
     error = null
     busy = true
     try {
       await action()
+      return true
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause)
+      return false
     } finally {
       busy = false
     }
@@ -117,9 +131,9 @@
       trainerState = 'connected'
     })
 
-  const connectTrainer = () =>
-    attempt(async () => {
-      const trainer = await pairTrainer()
+  async function connectTrainer(showEverything = false): Promise<void> {
+    const paired = await attempt(async () => {
+      const trainer = await pairTrainer(showEverything)
       trainerLabel = trainer.label
       trainerState = trainer.state
       trainer.onstate = (state, detail) => {
@@ -127,12 +141,18 @@
         if (state === 'error' && detail) error = detail
       }
     })
+    // An empty chooser and a cancelled one are the same failure to the page, so
+    // offer the wider search after either. It costs a button nobody has to press.
+    if (!paired) trainerNotFound = true
+  }
 
-  const connectClick = () =>
-    attempt(async () => {
-      await pairShifter()
+  async function connectClick(showEverything = false): Promise<void> {
+    const paired = await attempt(async () => {
+      await pairShifter(showEverything)
       clickState = zwiftClick.state
     })
+    if (!paired) clickNotFound = true
+  }
 
   function updateSettings(next: AppSettings): void {
     settings = next

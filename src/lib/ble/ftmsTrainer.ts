@@ -6,12 +6,12 @@
  */
 
 import { AIR_DENSITY, DEFAULT_RIDER, type RiderSettings } from '../physics/constants'
+import { trainerRequest } from './discovery'
 import {
   buildRequestControl,
   buildSimulationParameters,
   buildStart,
   buildStop,
-  CYCLING_POWER_SERVICE,
   FITNESS_MACHINE_CONTROL_POINT,
   FITNESS_MACHINE_FEATURE,
   FTMS_SERVICE,
@@ -34,9 +34,6 @@ const GRADIENT_EPSILON = 0.05
 
 /** Resend even when nothing changed, so the trainer knows we are still here. */
 const HEARTBEAT_MS = 5000
-
-const DEVICE_INFORMATION = 0x180a
-const BATTERY_SERVICE = 0x180f
 
 /**
  * Reconnect attempts after a drop. Web Bluetooth remembers a device the rider
@@ -81,7 +78,12 @@ export class FtmsTrainer implements Trainer {
     this.rider = rider
   }
 
-  async connect(): Promise<void> {
+  /**
+   * @param showEverything lists every Bluetooth device rather than the ones
+   * advertising a trainer service. For trainers whose advertisement gives
+   * nothing away.
+   */
+  async connect(showEverything = false): Promise<void> {
     if (!navigator.bluetooth) {
       throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge.')
     }
@@ -89,10 +91,7 @@ export class FtmsTrainer implements Trainer {
     this.closing = false
     this.setState('connecting')
     try {
-      this.device = await navigator.bluetooth.requestDevice({
-        filters: [{ services: [FTMS_SERVICE] }],
-        optionalServices: [CYCLING_POWER_SERVICE, DEVICE_INFORMATION, BATTERY_SERVICE],
-      })
+      this.device = await navigator.bluetooth.requestDevice(trainerRequest(showEverything))
       this.name = this.device.name ?? 'Trainer'
       this.device.addEventListener('gattserverdisconnected', this.onDropped)
 

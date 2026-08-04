@@ -8,6 +8,7 @@
  * misbehaves costs convenience rather than the ride.
  */
 
+import { BATTERY_SERVICE, clickRequest } from './discovery'
 import type { ConnectionState, Shifter } from './types'
 import {
   ClickShiftDetector,
@@ -21,9 +22,7 @@ import {
   ZWIFT_SYNC_TX,
 } from './zwiftClickProtocol'
 
-const BATTERY_SERVICE = 0x180f
 const BATTERY_LEVEL = 0x2a19
-const DEVICE_INFORMATION = 0x180a
 
 /** A Click that drops mid-ride should come back without the rider stopping. */
 const RECONNECT_ATTEMPTS = 6
@@ -51,7 +50,8 @@ export class ZwiftClick implements Shifter {
     return this.connection
   }
 
-  async connect(): Promise<void> {
+  /** @param showEverything lists every Bluetooth device rather than only Clicks. */
+  async connect(showEverything = false): Promise<void> {
     if (!navigator.bluetooth) {
       throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge.')
     }
@@ -59,17 +59,7 @@ export class ZwiftClick implements Shifter {
     this.closing = false
     this.setState('connecting')
     try {
-      this.device = await navigator.bluetooth.requestDevice({
-        // Either a Zwift-branded name or the service itself, since which of
-        // the two a given unit advertises is not consistent.
-        filters: [{ namePrefix: 'Zwift' }, { services: [ZWIFT_SERVICE_V1] }],
-        optionalServices: [
-          ZWIFT_SERVICE_V1,
-          ZWIFT_SERVICE_V2,
-          BATTERY_SERVICE,
-          DEVICE_INFORMATION,
-        ],
-      })
+      this.device = await navigator.bluetooth.requestDevice(clickRequest(showEverything))
       this.name = this.device.name ?? 'Zwift Click'
       this.device.addEventListener('gattserverdisconnected', this.onDropped)
 
