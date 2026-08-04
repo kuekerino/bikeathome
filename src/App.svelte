@@ -8,6 +8,7 @@
   import RouteLoader from './components/RouteLoader.svelte'
   import RouteMap from './components/RouteMap.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
+  import { bluetoothNote, currentPlatform } from './lib/browserSupport'
   import type { Route } from './lib/gpx/route'
   import { loadSettings, type AppSettings } from './lib/settings'
   import { keepScreenAwake } from './lib/wakeLock'
@@ -84,11 +85,7 @@
     },
   ])
 
-  const browserNote = $derived(
-    bluetooth
-      ? undefined
-      : 'This browser cannot pair Bluetooth devices. Use Chrome or Edge for real hardware — the demo trainer works anywhere.',
-  )
+  const browserNote = bluetoothNote(currentPlatform())
 
   async function attempt(action: () => Promise<void> | void): Promise<void> {
     error = null

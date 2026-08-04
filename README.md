@@ -2,8 +2,8 @@
 
 Ride your own GPX routes on a smart trainer, in the browser.
 
-**[Open it →](https://kuekerino.github.io/bikeathome/)** — Chrome or Edge to pair a
-trainer, any browser for the demo ride.
+**[Open it →](https://kuekerino.github.io/bikeathome/)** — Chrome or Edge on a computer
+to pair a trainer, any browser for the demo ride.
 
 Built for a **Wahoo Kickr Core 2 with a Zwift Cog** — a single-sprocket setup where
 physical shifting is impossible, so the app shifts in software and sends the resulting
@@ -33,8 +33,10 @@ mode works in any browser, including Safari.
 
 ## Riding it for real
 
-Requires **Chrome or Edge** — Safari and Firefox do not implement Web Bluetooth. It
-works on `localhost` without HTTPS; any other host must be served over HTTPS.
+Requires **Chrome or Edge on a computer** — Safari and Firefox do not implement Web
+Bluetooth, and no browser on iPhone or iPad can, because iOS makes them all Safari
+underneath. Installing Chrome on an iPad will not help. It works on `localhost` without
+HTTPS; any other host must be served over HTTPS.
 
 1. Wake the trainer by turning the cranks, and press the Click until it flashes.
 2. **Quit Zwift, MyWhoosh and the Wahoo app first.** Only one application can hold the
