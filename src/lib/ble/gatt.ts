@@ -57,6 +57,28 @@ export async function writeValue(
   throw last instanceof Error ? last : new Error(String(last))
 }
 
+/**
+ * Gives up after `ms`.
+ *
+ * `gatt.connect()` on a device that is switched off does not reliably reject —
+ * it can sit there indefinitely waiting for something that will never
+ * advertise. Fine for a button the rider pressed; not fine for a reconnect
+ * attempt on page load, which would leave the row saying "connecting" forever.
+ */
+export async function withTimeout<T>(ms: number, what: string, run: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      run,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms} ms.`)), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Names the step in the error, because the browser's message will not. */
 export async function during<T>(what: string, run: () => Promise<T>): Promise<T> {
   try {

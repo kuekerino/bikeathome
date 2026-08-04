@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { during, writeOrder, writeValue } from './gatt'
+import { during, withTimeout, writeOrder, writeValue } from './gatt'
 
 type Characteristic = BluetoothRemoteGATTCharacteristic
 
@@ -84,5 +84,25 @@ describe('during', () => {
 
   it('gets out of the way when nothing fails', async () => {
     await expect(during('Step', () => Promise.resolve(7))).resolves.toBe(7)
+  })
+})
+
+describe('withTimeout', () => {
+  it('gives up on a promise that never settles', async () => {
+    // A trainer that is switched off: gatt.connect() can hang rather than
+    // reject, which would leave the row saying "connecting" forever.
+    await expect(withTimeout(5, 'Reconnecting', new Promise(() => {}))).rejects.toThrow(
+      /Reconnecting timed out after 5 ms/,
+    )
+  })
+
+  it('passes a result straight through', async () => {
+    await expect(withTimeout(1000, 'Reconnecting', Promise.resolve('ok'))).resolves.toBe('ok')
+  })
+
+  it('keeps the original rejection rather than reporting a timeout', async () => {
+    await expect(
+      withTimeout(1000, 'Reconnecting', Promise.reject(new Error('out of range'))),
+    ).rejects.toThrow('out of range')
   })
 })

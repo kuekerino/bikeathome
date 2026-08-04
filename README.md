@@ -47,8 +47,21 @@ HTTPS; any other host must be served over HTTPS.
 4. Set your rider and bike weight under **Rider and drivetrain**, and set the same
    figure in the Wahoo app so the trainer's own model agrees with this one.
 
-Shift with the Click, or with <kbd>+</kbd> / <kbd>−</kbd> / the arrow keys. Export
-writes a TCX file that Strava, intervals.icu and Garmin Connect all accept.
+Shift with the Click, or with <kbd>+</kbd> / <kbd>−</kbd> / the arrow keys. If the
+button you want for a harder gear gives you an easier one, tick **Swap the Click's
+buttons** — which physical button reports as "up" varies with firmware and mounting,
+and cannot be worked out from the browser. Export writes a TCX file that Strava,
+intervals.icu and Garmin Connect all accept.
+
+### Pairing once instead of every time
+
+Enable `chrome://flags/#enable-web-bluetooth-new-permissions-backend` and devices you
+have paired come back on their own when you reopen the page — no chooser, no clicking.
+Without the flag Chrome forgets the permission when the tab closes, and there is no way
+around that from a web page.
+
+It is best-effort either way. A trainer that is asleep, out of range or held by another
+app just stays disconnected, silently, and the pairing buttons work as they always did.
 
 ## How it works
 

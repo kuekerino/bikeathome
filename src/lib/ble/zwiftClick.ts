@@ -63,10 +63,19 @@ export class ZwiftClick implements Shifter {
       throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge.')
     }
 
+    await this.adopt(() => navigator.bluetooth.requestDevice(clickRequest(showEverything)))
+  }
+
+  /** Reconnects to an already-permitted device, with no chooser and no gesture. */
+  async resume(device: BluetoothDevice): Promise<void> {
+    await this.adopt(() => Promise.resolve(device))
+  }
+
+  private async adopt(find: () => Promise<BluetoothDevice>): Promise<void> {
     this.closing = false
     this.setState('connecting')
     try {
-      this.device = await navigator.bluetooth.requestDevice(clickRequest(showEverything))
+      this.device = await find()
       this.name = this.device.name ?? 'Zwift Click'
       this.device.addEventListener('gattserverdisconnected', this.onDropped)
 
@@ -78,6 +87,10 @@ export class ZwiftClick implements Shifter {
       this.setState('error', describe(error))
       throw error
     }
+  }
+
+  get deviceId(): string | undefined {
+    return this.device?.id
   }
 
   async disconnect(): Promise<void> {

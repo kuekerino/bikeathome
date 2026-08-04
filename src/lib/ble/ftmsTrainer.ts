@@ -88,10 +88,23 @@ export class FtmsTrainer implements Trainer {
       throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge.')
     }
 
+    await this.adopt(() => navigator.bluetooth.requestDevice(trainerRequest(showEverything)))
+  }
+
+  /**
+   * Reconnects to a device this browser already has permission for, without a
+   * chooser and without a user gesture. Only `requestDevice` needs the gesture;
+   * connecting to an already-permitted device does not.
+   */
+  async resume(device: BluetoothDevice): Promise<void> {
+    await this.adopt(() => Promise.resolve(device))
+  }
+
+  private async adopt(find: () => Promise<BluetoothDevice>): Promise<void> {
     this.closing = false
     this.setState('connecting')
     try {
-      this.device = await navigator.bluetooth.requestDevice(trainerRequest(showEverything))
+      this.device = await find()
       this.name = this.device.name ?? 'Trainer'
       this.device.addEventListener('gattserverdisconnected', this.onDropped)
 
@@ -104,6 +117,10 @@ export class FtmsTrainer implements Trainer {
       this.setState('error', describe(error))
       throw error
     }
+  }
+
+  get deviceId(): string | undefined {
+    return this.device?.id
   }
 
   async disconnect(): Promise<void> {

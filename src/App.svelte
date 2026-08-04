@@ -21,6 +21,7 @@
     loadRouteFromText,
     pairShifter,
     pairTrainer,
+    resumePairings,
     startRide,
     startSession,
     useSimulatedTrainer,
@@ -50,6 +51,20 @@
       if (state === 'error' && detail) error = detail
     }
     zwiftClick.onbattery = (percent) => (clickBattery = percent)
+
+    // Devices this browser already has permission for come back on their own.
+    // Deliberately not awaited: the page is usable while it tries, and every
+    // failure is silent, so there is nothing to wait for.
+    void resumePairings().then(({ trainer }) => {
+      clickState = zwiftClick.state
+      if (!trainer) return
+      trainerLabel = trainer.label
+      trainerState = trainer.state
+      trainer.onstate = (state, detail) => {
+        trainerState = state
+        if (state === 'error' && detail) error = detail
+      }
+    })
 
     return stop
   })

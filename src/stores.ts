@@ -4,7 +4,9 @@
  */
 
 import { FtmsTrainer } from './lib/ble/ftmsTrainer'
+import { withTimeout } from './lib/ble/gatt'
 import { KeyboardShifter } from './lib/ble/keyboardShifter'
+import { canResumePairings, loadKnownDevices, pick, rememberDevice } from './lib/ble/knownDevices'
 import { SimulatedTrainer } from './lib/ble/simulatedTrainer'
 import type { Shifter, Trainer } from './lib/ble/types'
 import { ZwiftClick } from './lib/ble/zwiftClick'
@@ -100,13 +102,71 @@ export async function pairTrainer(showEverything = false): Promise<Trainer> {
   ftms.configure(loadSettings().rider)
   await ftms.connect(showEverything)
   engine.attachTrainer(ftms)
+  rememberDevice('trainer', ftms.deviceId)
   return ftms
 }
 
 export async function pairShifter(showEverything = false): Promise<Shifter> {
   await zwiftClick.connect(showEverything)
   engine.addShifter(zwiftClick)
+  rememberDevice('click', zwiftClick.deviceId)
   return zwiftClick
+}
+
+/** How long to wait for a remembered device before giving up on it quietly. */
+const RESUME_TIMEOUT_MS = 8000
+
+export interface Resumed {
+  trainer?: Trainer
+  click?: Shifter
+}
+
+/**
+ * Reconnects to devices this browser already has permission for, with no
+ * chooser and no click.
+ *
+ * Every failure here is silent by design: the rider did not ask for this, so a
+ * trainer that is switched off should look like a trainer that was never
+ * paired, not like an error. The pairing buttons stay exactly where they were.
+ */
+export async function resumePairings(): Promise<Resumed> {
+  const known = loadKnownDevices()
+  if (!canResumePairings() || (known.trainer === null && known.click === null)) return {}
+
+  let granted: BluetoothDevice[]
+  try {
+    granted = await navigator.bluetooth.getDevices()
+  } catch {
+    return {}
+  }
+
+  const resumed: Resumed = {}
+
+  const trainerDevice = pick(granted, known.trainer)
+  if (trainerDevice) {
+    ftms ??= new FtmsTrainer()
+    ftms.configure(loadSettings().rider)
+    try {
+      await withTimeout(RESUME_TIMEOUT_MS, 'Reconnecting to the trainer', ftms.resume(trainerDevice))
+      engine.attachTrainer(ftms)
+      resumed.trainer = ftms
+    } catch {
+      // Out of range, asleep, or claimed by another app. Pair by hand.
+    }
+  }
+
+  const clickDevice = pick(granted, known.click)
+  if (clickDevice) {
+    try {
+      await withTimeout(RESUME_TIMEOUT_MS, 'Reconnecting to the Click', zwiftClick.resume(clickDevice))
+      engine.addShifter(zwiftClick)
+      resumed.click = zwiftClick
+    } catch {
+      // The keyboard is still there.
+    }
+  }
+
+  return resumed
 }
 
 /** Web Bluetooth is Chrome and Edge only, and needs HTTPS or localhost. */
