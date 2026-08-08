@@ -16,15 +16,28 @@
   }
 
   let { ride, virtualShifting }: Props = $props()
+
+  // With no route there is no gradient, no elevation and nothing to be a
+  // fraction of, so those stats would read as zeroes rather than as absent.
+  const free = $derived(ride.mode === 'free')
 </script>
 
 <div class="primary">
-  <Stat
-    size="large"
-    value={formatGradient(ride.routeGradient)}
-    label="Gradient"
-    colour={gradientColour(ride.routeGradient)}
-  />
+  {#if free}
+    <Stat
+      size="large"
+      value={ride.targetPowerW ?? '—'}
+      unit={ride.targetPowerW === null ? undefined : 'W'}
+      label="Target"
+    />
+  {:else}
+    <Stat
+      size="large"
+      value={formatGradient(ride.routeGradient)}
+      label="Gradient"
+      colour={gradientColour(ride.routeGradient)}
+    />
+  {/if}
   <Stat size="large" value={Math.round(ride.powerW)} unit="W" label="Power" />
   <GearIndicator
     gear={ride.gear}
@@ -37,15 +50,18 @@
 <div class="secondary">
   <Stat value={formatSpeed(ride.speedMs)} label="km/h" />
   <Stat value={Math.round(ride.cadenceRpm)} label="rpm" />
-  <Stat
-    value={formatDistance(ride.distance)}
-    label="of {formatDistance(ride.routeDistance)} km"
-  />
+  {#if free}
+    <Stat value={formatDistance(ride.distance)} label="km" />
+  {:else}
+    <Stat
+      value={formatDistance(ride.distance)}
+      label="of {formatDistance(ride.routeDistance)} km"
+    />
+  {/if}
   <Stat value={formatDuration(ride.elapsedSeconds)} label="elapsed" />
-  <Stat
-    value={Math.round(ride.climbed)}
-    label="of {Math.round(ride.routeAscent)} m climbed"
-  />
+  {#if !free}
+    <Stat value={Math.round(ride.climbed)} label="of {Math.round(ride.routeAscent)} m climbed" />
+  {/if}
   <Stat
     value={formatGradient(ride.trainerGradient)}
     label={virtualShifting ? 'at the trainer' : 'at the trainer (no gearing)'}

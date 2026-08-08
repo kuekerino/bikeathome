@@ -440,3 +440,80 @@ describe('bound controls', () => {
     expect(engine.snapshot().status).toBe('riding')
   })
 })
+
+describe('free ride', () => {
+  function free() {
+    const engine = new RideEngine({ autoPauseSeconds: 0 })
+    const trainer = new FakeTrainer()
+    engine.attachTrainer(trainer)
+    engine.setFreeRide()
+    return { engine, trainer }
+  }
+
+  it('is rideable with no route loaded', () => {
+    const { engine } = free()
+    expect(engine.snapshot().mode).toBe('free')
+    expect(engine.snapshot().status).toBe('ready')
+    engine.start()
+    expect(engine.snapshot().status).toBe('riding')
+  })
+
+  it('covers ground at the speed the watts earn on the flat', () => {
+    const { engine, trainer } = free()
+    engine.start()
+    engine.tick(0)
+    trainer.send({ powerW: 250 })
+    // At the app's own tick rate. Anything slower is clamped by the
+    // integrator's maximum step, so the clock would outrun the rider.
+    for (let t = 250; t <= 60_000; t += 250) engine.tick(t)
+
+    // 250 W on the flat settles near 9.6 m/s; over a minute, allowing for the
+    // acceleration from a standstill, that is well over 400 m.
+    expect(engine.snapshot().speedMs).toBeGreaterThan(9)
+    expect(engine.snapshot().distance).toBeGreaterThan(400)
+  })
+
+  it('never finishes, because there is nothing to reach', () => {
+    const { engine, trainer } = free()
+    engine.start()
+    engine.tick(0)
+    trainer.send({ powerW: 300 })
+    for (let t = 250; t <= 600_000; t += 250) engine.tick(t)
+
+    expect(engine.snapshot().status).toBe('riding')
+    expect(engine.snapshot().routeDistance).toBe(0)
+  })
+
+  it('reports no gradient and no climbing', () => {
+    const { engine, trainer } = free()
+    engine.start()
+    engine.tick(0)
+    trainer.send({ powerW: 200 })
+    engine.tick(1000)
+
+    expect(engine.snapshot().routeGradient).toBe(0)
+    expect(engine.snapshot().climbed).toBe(0)
+    expect(engine.snapshot().routeAscent).toBe(0)
+  })
+
+  it('still lets the gear scale what the legs feel', () => {
+    // Flat road, but a taller gear is still harder — the trainer is told so.
+    const { engine } = free()
+    engine.start()
+    engine.tick(0)
+    engine.setGear(1)
+    const easy = engine.snapshot().trainerGradient
+    engine.setGear(24)
+    expect(engine.snapshot().trainerGradient).toBeGreaterThan(easy)
+  })
+
+  it('goes back to a route without carrying the free ride over', () => {
+    const { engine } = free()
+    engine.start()
+    engine.setRoute(climbRoute(1000, 5))
+
+    expect(engine.snapshot().mode).toBe('route')
+    expect(engine.snapshot().distance).toBe(0)
+    expect(engine.snapshot().routeDistance).toBeGreaterThan(0)
+  })
+})

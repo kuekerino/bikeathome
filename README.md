@@ -31,6 +31,18 @@ simulated rider holds a target power and adjusts cadence, so shifting behaves th
 it would on the road: too tall a gear and it grinds, too small and it spins out. Demo
 mode works in any browser, including Safari.
 
+## Two ways to ride
+
+**A route.** Load a GPX, or try the demo climb, and the trainer follows the real
+gradient while your speed follows the road.
+
+**Just pedal.** No route at all: set a wattage and hold it, the way an exercise bike
+works. Flat and endless, so there is no gradient, no elevation and nothing to finish —
+it still records, and still exports as a ride. Pick it from **Just pedal** on the
+opening screen; it arrives already holding a power.
+
+Everything below applies to both.
+
 ## Riding it for real
 
 Requires **Chrome or Edge on a computer** — Safari and Firefox do not implement Web
@@ -52,13 +64,13 @@ writes a TCX file that Strava, intervals.icu and Garmin Connect all accept.
 
 ### Holding a set power
 
-Tick **Hold a set power** and the trainer holds that wattage whatever gear you are in
-— ERG, in the usual jargon. Three step buttons either side of the number move it by 1,
-10 or 50 W, because setting an effort mid-interval is not a job for a text field.
+Tick **Hold a set power** — on a route or on a free ride — and the trainer holds that
+wattage whatever gear you are in — ERG, in the usual jargon. Three step buttons either
+side of the number move it by 1, 10 or 50 W, because setting an effort mid-interval is
+not a job for a text field.
 
 Speed is deliberately unaffected: it still comes from the watts the trainer reports and
-the route's real gradient, so a session in watt mode is still a ride along the route and
-still exports as one.
+the gradient, so a session in watt mode is still a ride and still exports as one.
 
 ### Remapping the controls
 

@@ -5,6 +5,7 @@ import { RideRecorder } from './recorder'
 function snapshot(overrides: Partial<RideSnapshot> = {}): RideSnapshot {
   return {
     status: 'riding',
+    mode: 'route',
     routeName: 'Test route',
     distance: 0,
     routeDistance: 1000,

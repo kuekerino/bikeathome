@@ -24,6 +24,7 @@
     pairShifter,
     pairTrainer,
     resumePairings,
+    startFreeRide,
     startRide,
     startSession,
     useSimulatedTrainer,
@@ -34,6 +35,8 @@
   let settings = $state<AppSettings>(loadSettings())
   let error = $state<string | null>(null)
   let busy = $state(false)
+  /** Pedalling with no route: flat, endless, watts only. */
+  let freeRide = $state(false)
 
   let trainerLabel = $state<string | null>(null)
   let trainerState = $state<ConnectionState>('disconnected')
@@ -74,6 +77,9 @@
   const ride = $derived($engine)
   const virtualShifting = $derived(settings.drivetrain.mode === 'virtual')
   const riding = $derived(ride.status === 'riding' || ride.status === 'paused')
+  /** A route loaded, or free ride chosen. Either way there is a ride on screen. */
+  const chosen = $derived(route !== null || freeRide)
+  const onRoute = $derived(route !== null)
 
   $effect(() => keepScreenAwake(ride.status === 'riding'))
 
@@ -134,13 +140,26 @@
     attempt(async () => {
       await loadDemoRoute()
       route = engine.currentRoute
+      freeRide = false
     })
 
   const openFile = (text: string) =>
     void attempt(() => {
       loadRouteFromText(text)
       route = engine.currentRoute
+      freeRide = false
     })
+
+  function openFreeRide(): void {
+    startFreeRide()
+    route = null
+    freeRide = true
+  }
+
+  function chooseAgain(): void {
+    route = null
+    freeRide = false
+  }
 
   const connectSimulator = () =>
     attempt(async () => {
@@ -182,15 +201,17 @@
     <div>
       <h1>bikeathome</h1>
       <p class="sub">
-        {#if route}
+        {#if onRoute}
           {ride.routeName ?? 'Unnamed route'}
+        {:else if freeRide}
+          Just pedalling — no route
         {:else}
           Ride your own GPX routes on a smart trainer
         {/if}
       </p>
     </div>
-    {#if route && !riding}
-      <button class="ghost" onclick={() => (route = null)}>Change route</button>
+    {#if chosen && !riding}
+      <button class="ghost" onclick={chooseAgain}>Change</button>
     {/if}
   </header>
 
@@ -198,23 +219,25 @@
     <p class="error" role="alert">{error}</p>
   {/if}
 
-  {#if !route}
-    <RouteLoader onFile={openFile} onDemo={openDemoRoute} {busy} />
+  {#if !chosen}
+    <RouteLoader onFile={openFile} onDemo={openDemoRoute} onFree={openFreeRide} {busy} />
   {/if}
 
   <ConnectPanel {devices} note={browserNote} />
 
-  {#if route}
+  {#if chosen}
     <Dashboard {ride} {virtualShifting} />
 
-    <div class="visuals">
-      <ElevationProfile {route} distance={ride.distance} />
-      <RouteMap {route} lat={ride.lat} lon={ride.lon} />
-    </div>
+    {#if route}
+      <div class="visuals">
+        <ElevationProfile {route} distance={ride.distance} />
+        <RouteMap {route} lat={ride.lat} lon={ride.lon} />
+      </div>
+    {/if}
 
     <RideControls
       status={ride.status}
-      canStart={route !== null}
+      canStart={chosen}
       canShift={virtualShifting}
       canExport={ride.elapsedSeconds >= 1}
       onStart={startRide}

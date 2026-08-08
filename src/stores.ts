@@ -180,6 +180,18 @@ export function loadRouteFromText(xml: string): void {
   recorder.reset()
 }
 
+/** Where free ride starts if the rider has not set a power before. */
+const DEFAULT_FREE_RIDE_W = 150
+
+/** No route: flat and endless, for setting a power and pedalling. */
+export function startFreeRide(): void {
+  engine.setFreeRide()
+  // Holding a power *is* the mode, so arrive already holding one rather than
+  // making the rider find the switch. Whatever they last chose wins.
+  engine.setTargetPower(engine.targetPower ?? DEFAULT_FREE_RIDE_W)
+  recorder.reset()
+}
+
 export async function loadDemoRoute(): Promise<void> {
   const response = await fetch(`${import.meta.env.BASE_URL}demo-route.gpx`)
   if (!response.ok) throw new Error(`Could not load the demo route (${response.status}).`)

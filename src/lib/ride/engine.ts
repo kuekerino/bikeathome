@@ -29,6 +29,16 @@ import { DEFAULT_BINDINGS, type Bindings } from '../controls/bindings'
 
 export type RideStatus = 'idle' | 'ready' | 'riding' | 'paused' | 'finished'
 
+/**
+ * Riding a loaded route, or just pedalling.
+ *
+ * Free ride is not a route with the interesting parts removed — it is flat and
+ * endless, so there is no gradient, no elevation and nothing to finish. The
+ * physics is the same either way, which is what keeps the speed honest: 160 W
+ * on the flat covers the ground it would cover on the road.
+ */
+export type RideMode = 'route' | 'free'
+
 /** Below this, with no power, the rider counts as stopped. */
 const STOPPED_SPEED_MS = 0.5
 
@@ -37,6 +47,7 @@ export const POWER_LIMITS = { min: 0, max: 2000 } as const
 
 export interface RideSnapshot {
   status: RideStatus
+  mode: RideMode
   routeName: string | null
   /** Metres along the route. */
   distance: number
@@ -79,6 +90,7 @@ export class RideEngine {
   onerror: ((error: unknown) => void) | null = null
 
   private route: Route | null = null
+  private mode: RideMode = 'route'
   private status: RideStatus = 'idle'
   private motion: MotionState = MOTION_AT_REST
   private gear = DEFAULT_GEAR
@@ -150,6 +162,16 @@ export class RideEngine {
 
   setRoute(route: Route): void {
     this.route = route
+    this.mode = 'route'
+    this.reset()
+    this.status = 'ready'
+    this.notify()
+  }
+
+  /** Flat, endless, no route: set a power and pedal. */
+  setFreeRide(): void {
+    this.route = null
+    this.mode = 'free'
     this.reset()
     this.status = 'ready'
     this.notify()
@@ -160,10 +182,15 @@ export class RideEngine {
     return this.route
   }
 
+  /** Whether there is anything to ride: a loaded route, or free ride chosen. */
+  get ridable(): boolean {
+    return this.mode === 'free' || this.route !== null
+  }
+
   // --- control ------------------------------------------------------------
 
   start(): void {
-    if (!this.route || this.status === 'riding') return
+    if (!this.ridable || this.status === 'riding') return
     if (this.status === 'finished' || this.status === 'ready') this.reset()
     this.status = 'riding'
     this.lastTickMs = null
@@ -274,7 +301,7 @@ export class RideEngine {
     this.lastTickMs = nowMs
 
     const route = this.route
-    if (!route || previous === null) return
+    if (previous === null || !this.ridable) return
     if (this.status !== 'riding' && this.status !== 'paused') return
 
     const dtSeconds = Math.max(0, (nowMs - previous) / 1000)
@@ -287,7 +314,7 @@ export class RideEngine {
 
     this.elapsedMs += dtSeconds * 1000
 
-    const routeGradient = route.gradientAt(this.motion.distance)
+    const routeGradient = route?.gradientAt(this.motion.distance) ?? 0
     this.motion = stepMotion(
       this.motion,
       { powerW: this.latest.powerW ?? 0, gradientPct: routeGradient, dtSeconds },
@@ -296,7 +323,7 @@ export class RideEngine {
 
     this.trackClimbing()
 
-    if (this.motion.distance >= route.totalDistance) {
+    if (route && this.motion.distance >= route.totalDistance) {
       this.motion = { speed: 0, distance: route.totalDistance }
       this.status = 'finished'
       this.pushGradient(0)
@@ -322,6 +349,7 @@ export class RideEngine {
 
     return {
       status: this.status,
+      mode: this.mode,
       routeName: this.route?.name ?? null,
       distance: this.motion.distance,
       routeDistance: this.route?.totalDistance ?? 0,
@@ -360,9 +388,11 @@ export class RideEngine {
   }
 
   private computeTrainerGradient(): number {
-    if (!this.route) return 0
+    if (!this.ridable) return 0
+    // Free ride is flat, but the gear still scales what the legs feel, exactly
+    // as it would on a flat road.
     return adjustedGradient(
-      this.route.gradientAt(this.motion.distance),
+      this.route?.gradientAt(this.motion.distance) ?? 0,
       this.motion.speed,
       relativeRatio(this.gear, this.drivetrain),
       this.rider,

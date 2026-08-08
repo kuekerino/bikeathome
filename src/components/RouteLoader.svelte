@@ -2,10 +2,11 @@
   interface Props {
     onFile: (text: string, filename: string) => void
     onDemo: () => void
+    onFree: () => void
     busy?: boolean
   }
 
-  let { onFile, onDemo, busy = false }: Props = $props()
+  let { onFile, onDemo, onFree, busy = false }: Props = $props()
 
   let dragging = $state(false)
 
@@ -52,7 +53,43 @@
   </div>
 </div>
 
+<div class="free">
+  <div>
+    <p class="headline">No route — just pedal</p>
+    <p class="muted">
+      Set a wattage and hold it, like an exercise bike. Flat and endless, and it still
+      records and exports.
+    </p>
+  </div>
+  <button onclick={onFree} disabled={busy}>Just pedal</button>
+</div>
+
 <style>
+  .free {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: var(--gap);
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    text-align: left;
+  }
+
+  .free .headline {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .free .muted {
+    margin: 0.2rem 0 0;
+    max-width: 34rem;
+  }
+
   .drop {
     border: 2px dashed var(--line);
     border-radius: var(--radius);
