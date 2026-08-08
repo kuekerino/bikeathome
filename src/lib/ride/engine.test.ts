@@ -496,7 +496,7 @@ describe('free ride', () => {
     expect(engine.snapshot().routeAscent).toBe(0)
   })
 
-  it('still lets the gear scale what the legs feel', () => {
+  it('lets the gear scale what the legs feel, with the power hold off', () => {
     // Flat road, but a taller gear is still harder — the trainer is told so.
     const { engine } = free()
     engine.start()
@@ -515,5 +515,50 @@ describe('free ride', () => {
     expect(engine.snapshot().mode).toBe('route')
     expect(engine.snapshot().distance).toBe(0)
     expect(engine.snapshot().routeDistance).toBeGreaterThan(0)
+  })
+})
+
+describe('the gear while holding a power', () => {
+  /**
+   * Holding a power means holding it. Shifting moves cadence, not effort — so
+   * a gear change must not reach the trainer at all, or the two instructions
+   * would be fighting over the same flywheel.
+   */
+  function holding(watts: number) {
+    const engine = new RideEngine({ autoPauseSeconds: 0 })
+    const trainer = new FakeTrainer()
+    engine.attachTrainer(trainer)
+    engine.setRoute(climbRoute(2000, 6))
+    engine.start()
+    engine.tick(0)
+    engine.setTargetPower(watts)
+    return { engine, trainer }
+  }
+
+  it('sends nothing to the trainer when the rider shifts', () => {
+    const { engine, trainer } = holding(160)
+    const gradients = trainer.gradients.length
+    const targets = trainer.powerTargets.length
+
+    engine.setGear(1)
+    engine.setGear(24)
+
+    expect(trainer.gradients.length).toBe(gradients)
+    // Still 160: the target did not move because the gear did.
+    expect(trainer.lastPowerTarget).toBe(160)
+    expect(trainer.powerTargets.length).toBeGreaterThanOrEqual(targets)
+  })
+
+  it('reports no trainer gradient, rather than a gradient nobody is sent', () => {
+    const { engine } = holding(160)
+    engine.setGear(24)
+    expect(engine.snapshot().trainerGradient).toBe(0)
+  })
+
+  it('gives the gear its meaning back when the hold comes off', () => {
+    const { engine } = holding(160)
+    engine.setGear(24)
+    engine.setTargetPower(null)
+    expect(engine.snapshot().trainerGradient).toBeGreaterThan(0)
   })
 })

@@ -39,7 +39,9 @@ gradient while your speed follows the road.
 **Just pedal.** No route at all: set a wattage and hold it, the way an exercise bike
 works. Flat and endless, so there is no gradient, no elevation and nothing to finish —
 it still records, and still exports as a ride. Pick it from **Just pedal** on the
-opening screen; it arrives already holding a power.
+opening screen; it arrives already holding a power, which means shifting will not change
+how hard it is. Turn the hold off if you would rather control the effort with the gears
+on a flat road.
 
 Everything below applies to both.
 
@@ -65,11 +67,16 @@ writes a TCX file that Strava, intervals.icu and Garmin Connect all accept.
 ### Holding a set power
 
 Tick **Hold a set power** — on a route or on a free ride — and the trainer holds that
-wattage whatever gear you are in — ERG, in the usual jargon. Three step buttons either
-side of the number move it by 1, 10 or 50 W, because setting an effort mid-interval is
-not a job for a text field.
+wattage, whatever gear you are in and whatever cadence you turn. ERG, in the usual
+jargon. Three step buttons either side of the number move it by 1, 10 or 50 W, because
+setting an effort mid-interval is not a job for a text field.
 
-Speed is deliberately unaffected: it still comes from the watts the trainer reports and
+**Shifting stops changing your effort while this is on.** That is what holding a power
+means: pick a taller gear and the trainer takes resistance away to keep you at the
+number. Gears become a way to choose a comfortable cadence, nothing more. The gear
+readout dims to say so. Turn the hold off and the gear decides everything again.
+
+Speed is unaffected either way: it still comes from the watts the trainer reports and
 the gradient, so a session in watt mode is still a ride and still exports as one.
 
 ### Remapping the controls

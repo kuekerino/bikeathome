@@ -20,6 +20,8 @@
   // With no route there is no gradient, no elevation and nothing to be a
   // fraction of, so those stats would read as zeroes rather than as absent.
   const free = $derived(ride.mode === 'free')
+  /** While the trainer holds a power, the gear and the gradient decide nothing. */
+  const holdingPower = $derived(ride.targetPowerW !== null)
 </script>
 
 <div class="primary">
@@ -44,6 +46,7 @@
     ratio={ride.gearRatio}
     relativeRatio={ride.relativeRatio}
     virtual={virtualShifting}
+    inert={holdingPower}
   />
 </div>
 
@@ -62,11 +65,15 @@
   {#if !free}
     <Stat value={Math.round(ride.climbed)} label="of {Math.round(ride.routeAscent)} m climbed" />
   {/if}
-  <Stat
-    value={formatGradient(ride.trainerGradient)}
-    label={virtualShifting ? 'at the trainer' : 'at the trainer (no gearing)'}
-    colour={gradientColour(ride.trainerGradient)}
-  />
+  {#if holdingPower}
+    <Stat value={Math.round(ride.targetPowerW ?? 0)} label="W held at the trainer" />
+  {:else}
+    <Stat
+      value={formatGradient(ride.trainerGradient)}
+      label={virtualShifting ? 'at the trainer' : 'at the trainer (no gearing)'}
+      colour={gradientColour(ride.trainerGradient)}
+    />
+  {/if}
 </div>
 
 <style>

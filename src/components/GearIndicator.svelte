@@ -7,25 +7,37 @@
     /** How much harder than the bike's own drivetrain the current gear is. */
     relativeRatio: number
     virtual: boolean
+    /**
+     * The trainer is holding a fixed power, so the gear no longer decides
+     * anything about the effort. Saying so beats showing a live-looking gear
+     * that does nothing.
+     */
+    inert?: boolean
   }
 
-  let { gear, ratio, relativeRatio, virtual }: Props = $props()
+  let { gear, ratio, relativeRatio, virtual, inert = false }: Props = $props()
 
   const gears = Array.from({ length: GEAR_COUNT }, (_, i) => i + 1)
 </script>
 
-<div class="gear">
+<div class="gear" class:inert>
   {#if virtual}
     <div class="readout">
       <span class="value num">{gear}<small>/{GEAR_COUNT}</small></span>
-      <span class="ratio num">{ratio.toFixed(2)} · {relativeRatio.toFixed(2)}×</span>
+      <span class="ratio num">
+        {#if inert}
+          not in use
+        {:else}
+          {ratio.toFixed(2)} · {relativeRatio.toFixed(2)}×
+        {/if}
+      </span>
     </div>
     <div class="ladder" aria-hidden="true">
       {#each gears as index (index)}
         <span class="rung" class:on={index <= gear} class:current={index === gear}></span>
       {/each}
     </div>
-    <span class="label">Gear</span>
+    <span class="label">{inert ? 'Gear · holding power' : 'Gear'}</span>
   {:else}
     <div class="readout">
       <span class="value">Cassette</span>
@@ -36,6 +48,11 @@
 </div>
 
 <style>
+  .inert .ladder,
+  .inert .value {
+    opacity: 0.4;
+  }
+
   .gear {
     background: var(--panel);
     border: 1px solid var(--line);

@@ -270,7 +270,10 @@ export class RideEngine {
     if (next === this.targetPowerW) return
 
     this.targetPowerW = next
-    this.pushResistance()
+    // Recompute rather than reuse: while holding a power the tracked gradient
+    // is zero, so pushing it as-is would send a flat road on the way out — for
+    // up to a tick, in the middle of a climb.
+    this.pushGradient(this.computeTrainerGradient())
     this.notify()
   }
 

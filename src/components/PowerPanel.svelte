@@ -38,8 +38,8 @@
         <strong>Hold a set power</strong>
         <em>
           {engaged
-            ? 'The trainer holds this whatever gear you are in. Speed still follows the route.'
-            : 'Resistance follows the route gradient.'}
+            ? 'The trainer holds this whatever gear or cadence you are in, so shifting changes your cadence, not your effort. Speed still follows the route.'
+            : 'Resistance follows the gradient, and the gear decides how hard that feels.'}
         </em>
       </span>
     </label>
