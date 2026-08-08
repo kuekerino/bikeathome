@@ -53,6 +53,13 @@
 <div class="secondary">
   <Stat value={formatSpeed(ride.speedMs)} label="km/h" />
   <Stat value={Math.round(ride.cadenceRpm)} label="rpm" />
+  {#if ride.heartRateBpm !== null}
+    <Stat
+      value={ride.heartRateBpm}
+      label={ride.overCeiling ? 'bpm — over the ceiling' : 'bpm'}
+      colour={ride.overCeiling ? 'var(--danger, #e5534b)' : undefined}
+    />
+  {/if}
   {#if free}
     <Stat value={formatDistance(ride.distance)} label="km" />
   {:else}
@@ -66,7 +73,12 @@
     <Stat value={Math.round(ride.climbed)} label="of {Math.round(ride.routeAscent)} m climbed" />
   {/if}
   {#if holdingPower}
-    <Stat value={Math.round(ride.targetPowerW ?? 0)} label="W held at the trainer" />
+    <Stat
+      value={ride.heldPowerW ?? 0}
+      label={ride.heldPowerW !== ride.targetPowerW
+        ? `W held — eased off from ${ride.targetPowerW}`
+        : 'W held at the trainer'}
+    />
   {:else}
     <Stat
       value={formatGradient(ride.trainerGradient)}

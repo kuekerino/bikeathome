@@ -23,6 +23,12 @@ import {
   type DrivetrainSettings,
 } from '../physics/gears'
 import { MOTION_AT_REST, stepMotion, type MotionState } from '../physics/motion'
+import {
+  DEFAULT_HEART_RATE_CAP,
+  isOverCeiling,
+  nextAppliedPower,
+  type HeartRateCapSettings,
+} from './heartRateCap'
 import type { Shifter, Trainer, TrainerData } from '../ble/types'
 import { POWER_STEP, type RideAction } from '../controls/actions'
 import { DEFAULT_BINDINGS, type Bindings } from '../controls/bindings'
@@ -62,8 +68,16 @@ export interface RideSnapshot {
   routeGradient: number
   /** What the trainer is being asked to simulate, in percent. */
   trainerGradient: number
-  /** Watts the trainer is being told to hold, or `null` when simulating. */
+  /** Watts the rider asked to hold, or `null` when simulating the gradient. */
   targetPowerW: number | null
+  /**
+   * Watts actually being sent. Below the target when the heart rate ceiling
+   * has pulled it down, equal to it otherwise.
+   */
+  heldPowerW: number | null
+  heartRateBpm: number | null
+  /** The rate is over the ceiling right now. */
+  overCeiling: boolean
   elapsedSeconds: number
   elevation: number
   climbed: number
@@ -76,6 +90,7 @@ export interface RideEngineOptions {
   rider?: RiderSettings
   drivetrain?: DrivetrainSettings
   bindings?: Bindings
+  heartRateCap?: HeartRateCapSettings
   /** Seconds of not pedalling before the clock stops. Zero disables it. */
   autoPauseSeconds?: number
 }
@@ -84,6 +99,7 @@ export class RideEngine {
   rider: RiderSettings
   drivetrain: DrivetrainSettings
   bindings: Bindings
+  heartRateCap: HeartRateCapSettings
   autoPauseSeconds: number
 
   /** Reports a failed write to the trainer; the device reports link state itself. */
@@ -97,6 +113,9 @@ export class RideEngine {
   private latest: TrainerData = {}
   private trainerGradient = 0
   private targetPowerW: number | null = null
+  /** What the ceiling has actually left of the target. */
+  private appliedPowerW: number | null = null
+  private heartRateBpm: number | null = null
   /** Whether the trainer was last told to hold a power rather than a slope. */
   private ergEngaged = false
   private elapsedMs = 0
@@ -119,6 +138,7 @@ export class RideEngine {
     this.rider = options.rider ?? DEFAULT_RIDER
     this.drivetrain = options.drivetrain ?? DEFAULT_DRIVETRAIN
     this.bindings = options.bindings ?? DEFAULT_BINDINGS
+    this.heartRateCap = options.heartRateCap ?? DEFAULT_HEART_RATE_CAP
     this.autoPauseSeconds = options.autoPauseSeconds ?? 5
   }
 
@@ -270,6 +290,9 @@ export class RideEngine {
     if (next === this.targetPowerW) return
 
     this.targetPowerW = next
+    // A manual change is an instruction, not a suggestion: drop any hold-back
+    // rather than easing towards the new number.
+    this.appliedPowerW = next
     // Recompute rather than reuse: while holding a power the tracked gradient
     // is zero, so pushing it as-is would send a flat road on the way out — for
     // up to a tick, in the middle of a climb.
@@ -285,6 +308,12 @@ export class RideEngine {
 
   get targetPower(): number | null {
     return this.targetPowerW
+  }
+
+  /** The latest strap reading. `null` clears it when the strap goes away. */
+  setHeartRate(bpm: number | null): void {
+    this.heartRateBpm = bpm
+    this.notify()
   }
 
   setGear(gear: number): void {
@@ -335,6 +364,7 @@ export class RideEngine {
     }
 
     this.checkAutoPause(dtSeconds)
+    this.applyHeartRateCap(dtSeconds)
     this.pushGradient(this.computeTrainerGradient())
     this.notify()
   }
@@ -365,6 +395,12 @@ export class RideEngine {
       routeGradient: position?.gradient ?? 0,
       trainerGradient: this.trainerGradient,
       targetPowerW: this.targetPowerW,
+      heldPowerW:
+        this.targetPowerW === null
+          ? null
+          : Math.round(this.appliedPowerW ?? this.targetPowerW),
+      heartRateBpm: this.heartRateBpm,
+      overCeiling: isOverCeiling(this.heartRateBpm, this.heartRateCap),
       elapsedSeconds: this.elapsedMs / 1000,
       elevation: position?.ele ?? 0,
       climbed: this.climbed,
@@ -412,6 +448,26 @@ export class RideEngine {
     this.pushResistance()
   }
 
+  /**
+   * Pulls the target down while the heart rate is over the ceiling, and lets
+   * it back up once it is clear. Only ever takes away.
+   */
+  private applyHeartRateCap(dtSeconds: number): void {
+    if (this.targetPowerW === null) {
+      this.appliedPowerW = null
+      return
+    }
+    this.appliedPowerW = nextAppliedPower(
+      {
+        chosenW: this.targetPowerW,
+        appliedW: this.appliedPowerW ?? this.targetPowerW,
+        heartRateBpm: this.heartRateBpm,
+        dtSeconds,
+      },
+      this.heartRateCap,
+    )
+  }
+
   private pushResistance(): void {
     const trainer = this.trainer
     if (!trainer) return
@@ -420,7 +476,10 @@ export class RideEngine {
 
     if (this.targetPowerW !== null) {
       this.ergEngaged = true
-      trainer.setTargetPower(this.targetPowerW).catch(failed)
+      // Whole watts: FTMS carries no fraction, and the controller works in
+      // real numbers so it can move slower than one watt per tick.
+      const watts = Math.round(this.appliedPowerW ?? this.targetPowerW)
+      trainer.setTargetPower(watts).catch(failed)
       return
     }
 

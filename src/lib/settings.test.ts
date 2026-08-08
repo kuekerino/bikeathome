@@ -86,3 +86,38 @@ describe('control bindings', () => {
     expect(settings.bindings.click).toEqual({ up: 'powerUp10', down: 'powerDown10' })
   })
 })
+
+describe('heart rate ceiling', () => {
+  it('has no ceiling until one is set', () => {
+    expect(sanitizeSettings({}).heartRateCap.ceilingBpm).toBeNull()
+  })
+
+  it('keeps a plausible ceiling', () => {
+    expect(sanitizeSettings({ heartRateCap: { ceilingBpm: 137 } }).heartRateCap.ceilingBpm).toBe(
+      137,
+    )
+  })
+
+  it('treats zero and nonsense as no ceiling rather than as a number', () => {
+    // A ceiling of 0 would fire permanently; NaN would fire never.
+    for (const ceilingBpm of [0, -10, NaN, 'high', null, {}]) {
+      expect(sanitizeSettings({ heartRateCap: { ceilingBpm } }).heartRateCap.ceilingBpm).toBeNull()
+    }
+  })
+
+  it('clamps a ceiling no heart reaches', () => {
+    expect(sanitizeSettings({ heartRateCap: { ceilingBpm: 900 } }).heartRateCap.ceilingBpm).toBe(
+      220,
+    )
+  })
+
+  it('backs off by default, and only a real false turns it off', () => {
+    expect(sanitizeSettings({}).heartRateCap.autoBackOff).toBe(true)
+    expect(
+      sanitizeSettings({ heartRateCap: { autoBackOff: false } }).heartRateCap.autoBackOff,
+    ).toBe(false)
+    expect(sanitizeSettings({ heartRateCap: { autoBackOff: 0 } }).heartRateCap.autoBackOff).toBe(
+      true,
+    )
+  })
+})

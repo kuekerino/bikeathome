@@ -5,9 +5,10 @@ const device = (id: string) => ({ id }) as BluetoothDevice
 
 describe('sanitizeKnownDevices', () => {
   it('keeps ids that look like ids', () => {
-    expect(sanitizeKnownDevices({ trainer: 'abc', click: 'def' })).toEqual({
+    expect(sanitizeKnownDevices({ trainer: 'abc', click: 'def', heartRate: 'ghi' })).toEqual({
       trainer: 'abc',
       click: 'def',
+      heartRate: 'ghi',
     })
   })
 

@@ -70,14 +70,32 @@ export function tcxFilename(startedAtMs: number): string {
 }
 
 function formatTrackpoint(sample: RideSample): string {
-  return `          <Trackpoint>
-            <Time>${new Date(sample.time).toISOString()}</Time>
+  // A free ride has no fix at all. Writing 0,0 would put the whole session off
+  // the coast of Africa, which is worse than saying nothing: TCX allows a
+  // trackpoint with no Position, and consumers handle it.
+  const located = sample.lat !== 0 || sample.lon !== 0
+  const position = located
+    ? `
             <Position>
               <LatitudeDegrees>${formatCoordinate(sample.lat)}</LatitudeDegrees>
               <LongitudeDegrees>${formatCoordinate(sample.lon)}</LongitudeDegrees>
             </Position>
-            <AltitudeMeters>${formatDistance(sample.altitudeM)}</AltitudeMeters>
-            <DistanceMeters>${formatDistance(sample.distanceM)}</DistanceMeters>
+            <AltitudeMeters>${formatDistance(sample.altitudeM)}</AltitudeMeters>`
+    : ''
+
+  // Order matters: the TCX schema fixes the sequence, and HeartRateBpm sits
+  // between DistanceMeters and Cadence.
+  const heartRate =
+    sample.heartRateBpm === undefined
+      ? ''
+      : `
+            <HeartRateBpm>
+              <Value>${clampHeartRate(sample.heartRateBpm)}</Value>
+            </HeartRateBpm>`
+
+  return `          <Trackpoint>
+            <Time>${new Date(sample.time).toISOString()}</Time>${position}
+            <DistanceMeters>${formatDistance(sample.distanceM)}</DistanceMeters>${heartRate}
             <Cadence>${clampCadence(sample.cadenceRpm)}</Cadence>
             <Extensions>
               <ns3:TPX>
@@ -86,6 +104,11 @@ function formatTrackpoint(sample: RideSample): string {
               </ns3:TPX>
             </Extensions>
           </Trackpoint>`
+}
+
+/** TCX types HeartRateBpm as 1-255, and a strap can glitch outside that. */
+function clampHeartRate(bpm: number): number {
+  return Math.min(255, Math.max(1, Math.round(bpm)))
 }
 
 function formatCoordinate(value: number): string {

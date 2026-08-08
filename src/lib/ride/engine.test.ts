@@ -562,3 +562,93 @@ describe('the gear while holding a power', () => {
     expect(engine.snapshot().trainerGradient).toBeGreaterThan(0)
   })
 })
+
+describe('the heart rate ceiling, end to end', () => {
+  function holding(watts: number, ceilingBpm: number | null) {
+    const engine = new RideEngine({
+      autoPauseSeconds: 0,
+      heartRateCap: { ceilingBpm, autoBackOff: true, floorW: 60 },
+    })
+    const trainer = new FakeTrainer()
+    engine.attachTrainer(trainer)
+    engine.setFreeRide()
+    engine.start()
+    engine.tick(0)
+    engine.setTargetPower(watts)
+    return { engine, trainer }
+  }
+
+  /** One minute of riding at a fixed heart rate, at the app's tick rate. */
+  function ride(engine: RideEngine, trainer: FakeTrainer, bpm: number, seconds = 60) {
+    for (let t = 250; t <= seconds * 1000; t += 250) {
+      trainer.send({ powerW: 150 })
+      engine.setHeartRate(bpm)
+      engine.tick(t)
+    }
+  }
+
+  it('eases the watts off when the rate goes over', () => {
+    const { engine, trainer } = holding(145, 137)
+    ride(engine, trainer, 148)
+
+    expect(engine.snapshot().heldPowerW).toBeLessThan(145)
+    expect(engine.snapshot().targetPowerW).toBe(145)
+    expect(trainer.lastPowerTarget).toBe(engine.snapshot().heldPowerW)
+  })
+
+  it('leaves the rider alone while they are under it', () => {
+    const { engine, trainer } = holding(145, 137)
+    ride(engine, trainer, 128)
+
+    expect(engine.snapshot().heldPowerW).toBe(145)
+    expect(engine.snapshot().overCeiling).toBe(false)
+  })
+
+  it('recovers the target once the rate comes down', () => {
+    const { engine, trainer } = holding(145, 137)
+    ride(engine, trainer, 150, 30)
+    const pulledDown = engine.snapshot().heldPowerW ?? 0
+    expect(pulledDown).toBeLessThan(145)
+
+    ride(engine, trainer, 120, 120)
+    expect(engine.snapshot().heldPowerW).toBe(145)
+  })
+
+  it('sends whole watts, whatever the controller is thinking in', () => {
+    const { engine, trainer } = holding(145, 137)
+    ride(engine, trainer, 148, 3)
+    expect(Number.isInteger(trainer.lastPowerTarget)).toBe(true)
+  })
+
+  it('takes a manual change at once rather than easing towards it', () => {
+    // A number the rider typed is an instruction, not a suggestion.
+    const { engine, trainer } = holding(145, 137)
+    ride(engine, trainer, 150, 30)
+    engine.setTargetPower(100)
+    expect(engine.snapshot().heldPowerW).toBe(100)
+  })
+
+  it('gives the watts back when the strap goes away', () => {
+    // Otherwise unpairing mid-ride leaves the effort suppressed for good.
+    const { engine, trainer } = holding(145, 137)
+    ride(engine, trainer, 150, 30)
+    expect(engine.snapshot().heldPowerW).toBeLessThan(145)
+
+    engine.setHeartRate(null)
+    engine.tick(31_000)
+    expect(engine.snapshot().heldPowerW).toBe(145)
+  })
+
+  it('does nothing at all with no ceiling set', () => {
+    const { engine, trainer } = holding(145, null)
+    ride(engine, trainer, 190)
+    expect(engine.snapshot().heldPowerW).toBe(145)
+    expect(engine.snapshot().overCeiling).toBe(false)
+  })
+
+  it('records the rate for the export', () => {
+    const { engine, trainer } = holding(145, 137)
+    ride(engine, trainer, 132, 5)
+    expect(engine.snapshot().heartRateBpm).toBe(132)
+  })
+})

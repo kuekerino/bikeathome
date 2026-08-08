@@ -10,6 +10,7 @@
 import { DEFAULT_BINDINGS, sanitizeBindings, type Bindings } from './controls/bindings'
 import { DEFAULT_RIDER, type RiderSettings } from './physics/constants'
 import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from './physics/gears'
+import { DEFAULT_HEART_RATE_CAP, type HeartRateCapSettings } from './ride/heartRateCap'
 
 const STORAGE_KEY = 'bikeathome.settings.v1'
 
@@ -18,17 +19,21 @@ export interface AppSettings {
   drivetrain: DrivetrainSettings
   /** What each key and each Click button does. */
   bindings: Bindings
+  heartRateCap: HeartRateCapSettings
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   rider: DEFAULT_RIDER,
   drivetrain: DEFAULT_DRIVETRAIN,
   bindings: DEFAULT_BINDINGS,
+  heartRateCap: DEFAULT_HEART_RATE_CAP,
 }
 
 /** Bounds are generous — they exist to stop nonsense, not to police riders. */
 const LIMITS = {
   massKg: [30, 250],
+  bpm: [80, 220],
+  floorW: [0, 400],
   crr: [0.001, 0.02],
   cda: [0.15, 1.2],
   teeth: [8, 60],
@@ -58,6 +63,7 @@ export function sanitizeSettings(raw: unknown): AppSettings {
       ),
       cogTeeth: integer(drivetrain.cogTeeth, DEFAULT_DRIVETRAIN.cogTeeth, LIMITS.teeth),
     },
+    heartRateCap: sanitizeHeartRateCap(input.heartRateCap),
     // `shifter.swapButtons` was the old way of saying the same thing, and a
     // rider who had ticked it should not have to find the new control to get
     // their shifting back.
@@ -65,6 +71,27 @@ export function sanitizeSettings(raw: unknown): AppSettings {
       input.bindings,
       ((input.shifter ?? {}) as { swapButtons?: unknown }).swapButtons === true,
     ),
+  }
+}
+
+function sanitizeHeartRateCap(raw: unknown): HeartRateCapSettings {
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_HEART_RATE_CAP
+
+  const input = raw as Partial<Record<keyof HeartRateCapSettings, unknown>>
+  const ceiling = input.ceilingBpm
+
+  return {
+    // A ceiling outside what a heart does is a stored mistake, and one that
+    // would either never fire or never stop firing.
+    // Zero and nonsense both mean "no ceiling"; anything else is clamped to a
+    // rate a heart actually reaches, so a stored mistake cannot set a ceiling
+    // that never fires or never stops firing.
+    ceilingBpm:
+      typeof ceiling === 'number' && Number.isFinite(ceiling) && ceiling > 0
+        ? integer(ceiling, LIMITS.bpm[0], LIMITS.bpm)
+        : null,
+    autoBackOff: input.autoBackOff !== false,
+    floorW: integer(input.floorW, DEFAULT_HEART_RATE_CAP.floorW, LIMITS.floorW),
   }
 }
 

@@ -79,6 +79,19 @@ readout dims to say so. Turn the hold off and the gear decides everything again.
 Speed is unaffected either way: it still comes from the watts the trainer reports and
 the gradient, so a session in watt mode is still a ride and still exports as one.
 
+### Training to heart rate
+
+Pair a strap and the rate shows on the dashboard and goes into the export. With **Hold a
+set power** on you can also set a **ceiling**: hold 145 W but never above 137 bpm, and
+the target eases off by itself when your heart disagrees — then comes back once you are
+clear of it.
+
+This exists because the same wattage costs a different heart rate on a hot day, on tired
+legs or after bad sleep, so an endurance ride prescribed in watts quietly stops being an
+endurance ride. The ceiling comes down faster than it goes back up, holds inside a small
+deadband rather than hunting, and never pushes above what you asked for. Untick **Ease
+the watts off automatically** to get the warning without the intervention.
+
 ### Remapping the controls
 
 Under **Controls**, every key and both shifter buttons can be pointed at any action —

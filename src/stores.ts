@@ -4,6 +4,7 @@
  */
 
 import { FtmsTrainer } from './lib/ble/ftmsTrainer'
+import { HeartRateMonitor } from './lib/ble/heartRate'
 import { withTimeout } from './lib/ble/gatt'
 import { canResumePairings, loadKnownDevices, pick, rememberDevice } from './lib/ble/knownDevices'
 import { SimulatedTrainer } from './lib/ble/simulatedTrainer'
@@ -26,6 +27,7 @@ export const recorder = new RideRecorder()
 /** Always available, even with a Click paired, as a fallback mid-ride. */
 export const keyboard = new KeyboardControls()
 export const zwiftClick = new ZwiftClick()
+export const heartRate = new HeartRateMonitor()
 
 let simulated: SimulatedTrainer | null = null
 let ftms: FtmsTrainer | null = null
@@ -81,6 +83,7 @@ export function applySettings(settings: AppSettings): void {
   // given, so it needs the same coefficients the app subtracted out.
   ftms?.configure(settings.rider)
   engine.bindings = settings.bindings
+  engine.heartRateCap = settings.heartRateCap
   keyboard.configure(settings.bindings)
   saveSettings(settings)
 }
@@ -107,6 +110,26 @@ export async function pairTrainer(showEverything = false): Promise<Trainer> {
   return ftms
 }
 
+export async function pairHeartRate(showEverything = false): Promise<HeartRateMonitor> {
+  await heartRate.connect(showEverything)
+  adoptHeartRate()
+  rememberDevice('heartRate', heartRate.deviceId)
+  return heartRate
+}
+
+/**
+ * A strap that goes away must stop feeding the engine, or the last reading
+ * would sit there forever holding the power down.
+ */
+function adoptHeartRate(): void {
+  heartRate.onreading = ({ bpm }) => engine.setHeartRate(bpm)
+  const previous = heartRate.onstate
+  heartRate.onstate = (state, detail) => {
+    if (state === 'disconnected' || state === 'error') engine.setHeartRate(null)
+    previous?.(state, detail)
+  }
+}
+
 export async function pairShifter(showEverything = false): Promise<Shifter> {
   await zwiftClick.connect(showEverything)
   engine.addShifter(zwiftClick)
@@ -120,6 +143,7 @@ const RESUME_TIMEOUT_MS = 8000
 export interface Resumed {
   trainer?: Trainer
   click?: Shifter
+  heartRate?: HeartRateMonitor
 }
 
 /**
@@ -132,7 +156,8 @@ export interface Resumed {
  */
 export async function resumePairings(): Promise<Resumed> {
   const known = loadKnownDevices()
-  if (!canResumePairings() || (known.trainer === null && known.click === null)) return {}
+  const nothingKnown = known.trainer === null && known.click === null && known.heartRate === null
+  if (!canResumePairings() || nothingKnown) return {}
 
   let granted: BluetoothDevice[]
   try {
@@ -164,6 +189,17 @@ export async function resumePairings(): Promise<Resumed> {
       resumed.click = zwiftClick
     } catch {
       // The keyboard is still there.
+    }
+  }
+
+  const strapDevice = pick(granted, known.heartRate)
+  if (strapDevice) {
+    try {
+      await withTimeout(RESUME_TIMEOUT_MS, 'Reconnecting to the strap', heartRate.resume(strapDevice))
+      adoptHeartRate()
+      resumed.heartRate = heartRate
+    } catch {
+      // Straps sleep when they are off a chest. Pair by hand.
     }
   }
 

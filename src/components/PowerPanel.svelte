@@ -7,17 +7,39 @@
    * big buttons — so the steps are the interface and the number is a readout
    * you can still type into if you want to.
    */
+  import type { HeartRateCapSettings } from '../lib/ride/heartRateCap'
+
   interface Props {
-    /** Watts being held, or null when the route's gradient is in charge. */
+    /** Watts the rider asked for, or null when the gradient is in charge. */
     target: number | null
+    /** Watts actually being sent — below target when the ceiling pulled it down. */
+    held: number | null
     /** What the rider is actually producing right now. */
     actual: number
+    heartRateBpm: number | null
+    overCeiling: boolean
+    cap: HeartRateCapSettings
     disabled: boolean
     onSet: (watts: number | null) => void
     onNudge: (delta: number) => void
+    onCapChange: (cap: HeartRateCapSettings) => void
   }
 
-  let { target, actual, disabled, onSet, onNudge }: Props = $props()
+  let {
+    target,
+    held,
+    actual,
+    heartRateBpm,
+    overCeiling,
+    cap,
+    disabled,
+    onSet,
+    onNudge,
+    onCapChange,
+  }: Props = $props()
+
+  /** The ceiling is actively taking watts away, not merely set. */
+  const holdingBack = $derived(target !== null && held !== null && held < target)
 
   const STEPS = [50, 10, 1] as const
 
@@ -83,6 +105,55 @@
         <span class="drift">({actual > target ? '+' : ''}{Math.round(actual - target)})</span>
       {/if}
     </p>
+
+    <div class="ceiling" class:over={overCeiling}>
+      <label>
+        <span>Never above</span>
+        <span class="field">
+          <input
+            type="number"
+            min="80"
+            max="220"
+            step="1"
+            placeholder="—"
+            value={cap.ceilingBpm}
+            onchange={(e) => {
+              const raw = Number(e.currentTarget.value)
+              onCapChange({ ...cap, ceilingBpm: Number.isFinite(raw) && raw > 0 ? raw : null })
+            }}
+          />
+          <span class="unit">bpm</span>
+        </span>
+      </label>
+
+      {#if cap.ceilingBpm !== null}
+        <label class="inline">
+          <input
+            type="checkbox"
+            checked={cap.autoBackOff}
+            onchange={(e) => onCapChange({ ...cap, autoBackOff: e.currentTarget.checked })}
+          />
+          <span>Ease the watts off automatically</span>
+        </label>
+
+        <p class="hint">
+          {#if heartRateBpm === null}
+            No strap connected, so nothing is watching.
+          {:else if holdingBack}
+            <strong>{heartRateBpm} bpm</strong> — holding {held} W instead of {target} W.
+          {:else if overCeiling}
+            <strong>{heartRateBpm} bpm</strong> — over the ceiling.
+          {:else}
+            <strong>{heartRateBpm} bpm</strong> — under the ceiling.
+          {/if}
+        </p>
+      {:else}
+        <p class="hint">
+          The same watts cost a different heart rate on a hot day or on tired legs. Set a
+          ceiling and an endurance ride stays an endurance ride.
+        </p>
+      {/if}
+    </div>
   {/if}
 </section>
 
@@ -170,5 +241,57 @@
 
   .drift {
     font-variant-numeric: tabular-nums;
+  }
+
+  .ceiling {
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .ceiling.over strong {
+    color: var(--danger, #e5534b);
+  }
+
+  .ceiling label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.88rem;
+  }
+
+  .ceiling .inline {
+    justify-content: flex-start;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .ceiling .inline input {
+    accent-color: var(--accent);
+  }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .field input {
+    width: 5rem;
+    font-size: 1rem;
+    text-align: right;
+  }
+
+  .unit {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .ceiling .hint {
+    text-align: left;
   }
 </style>

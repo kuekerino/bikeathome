@@ -33,6 +33,11 @@ const TRAINER_SERVICES = [
 
 const CLICK_SERVICES = [ZWIFT_SERVICE_V1, ZWIFT_SERVICE_V2, DEVICE_INFORMATION, BATTERY_SERVICE]
 
+/** Heart Rate Service — a Bluetooth SIG standard every strap advertises. */
+export const HEART_RATE_SERVICE = 0x180d
+
+const HEART_RATE_SERVICES = [HEART_RATE_SERVICE, DEVICE_INFORMATION, BATTERY_SERVICE]
+
 /**
  * @param showEverything drops the filters entirely and lists every Bluetooth
  * device in range. The last resort when a trainer advertises nothing we
@@ -63,5 +68,15 @@ export function clickRequest(showEverything = false): RequestDeviceOptions {
       { services: [ZWIFT_SERVICE_V2] },
     ],
     optionalServices: CLICK_SERVICES,
+  }
+}
+
+export function heartRateRequest(showEverything = false): RequestDeviceOptions {
+  if (showEverything) return { acceptAllDevices: true, optionalServices: HEART_RATE_SERVICES }
+  // Straps do advertise their service, unlike some trainers, so one filter is
+  // genuinely enough here.
+  return {
+    filters: [{ services: [HEART_RATE_SERVICE] }],
+    optionalServices: HEART_RATE_SERVICES,
   }
 }

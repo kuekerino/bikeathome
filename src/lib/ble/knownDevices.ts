@@ -12,11 +12,11 @@
 
 const STORAGE_KEY = 'bikeathome.devices.v1'
 
-export type DeviceRole = 'trainer' | 'click'
+export type DeviceRole = 'trainer' | 'click' | 'heartRate'
 
 export type KnownDevices = Record<DeviceRole, string | null>
 
-export const NO_KNOWN_DEVICES: KnownDevices = { trainer: null, click: null }
+export const NO_KNOWN_DEVICES: KnownDevices = { trainer: null, click: null, heartRate: null }
 
 /** Stored ids outlive code changes, so treat whatever comes back as hostile. */
 export function sanitizeKnownDevices(raw: unknown): KnownDevices {
@@ -26,7 +26,7 @@ export function sanitizeKnownDevices(raw: unknown): KnownDevices {
   const id = (value: unknown): string | null =>
     typeof value === 'string' && value.length > 0 ? value : null
 
-  return { trainer: id(input.trainer), click: id(input.click) }
+  return { trainer: id(input.trainer), click: id(input.click), heartRate: id(input.heartRate) }
 }
 
 export function loadKnownDevices(): KnownDevices {

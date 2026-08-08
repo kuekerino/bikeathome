@@ -19,6 +19,8 @@ export interface RideSample {
   powerW: number
   cadenceRpm: number
   speedMs: number
+  /** Absent when no strap was reporting at that moment. */
+  heartRateBpm?: number
 }
 
 /** Samples closer together than this add no signal a TCX consumer needs. */
@@ -42,6 +44,7 @@ export class RideRecorder {
       powerW: snapshot.powerW,
       cadenceRpm: snapshot.cadenceRpm,
       speedMs: snapshot.speedMs,
+      ...(snapshot.heartRateBpm === null ? {} : { heartRateBpm: snapshot.heartRateBpm }),
     })
   }
 

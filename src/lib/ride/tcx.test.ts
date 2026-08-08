@@ -212,3 +212,69 @@ const EXPECTED_GOLDEN_TCX = `<?xml version="1.0" encoding="UTF-8"?>
   </Activities>
 </TrainingCenterDatabase>
 `
+
+describe('heart rate in the export', () => {
+  const sample = (over: Partial<RideSample> = {}): RideSample => ({
+    time: START_MS,
+    distanceM: 100,
+    lat: 46.5,
+    lon: 11.35,
+    altitudeM: 620,
+    powerW: 180,
+    cadenceRpm: 85,
+    speedMs: 7,
+    ...over,
+  })
+
+  it('writes HeartRateBpm where the schema expects it', () => {
+    const xml = buildTcx([sample({ heartRateBpm: 137 }), sample({ time: START_MS + 1000 })])
+    expect(xml).toContain('<HeartRateBpm>')
+    expect(xml).toContain('<Value>137</Value>')
+    // The TCX sequence is fixed: DistanceMeters, then HeartRateBpm, then Cadence.
+    const point = xml.slice(xml.indexOf('<Trackpoint>'), xml.indexOf('</Trackpoint>'))
+    expect(point.indexOf('<DistanceMeters>')).toBeLessThan(point.indexOf('<HeartRateBpm>'))
+    expect(point.indexOf('<HeartRateBpm>')).toBeLessThan(point.indexOf('<Cadence>'))
+  })
+
+  it('leaves the element out entirely when no strap was reporting', () => {
+    expect(buildTcx([sample(), sample({ time: START_MS + 1000 })])).not.toContain('HeartRateBpm')
+  })
+
+  it('clamps a glitching strap into what the schema allows', () => {
+    const xml = buildTcx([
+      sample({ heartRateBpm: 900 }),
+      sample({ time: START_MS + 1000, heartRateBpm: 0 }),
+    ])
+    expect(xml).toContain('<Value>255</Value>')
+    expect(xml).toContain('<Value>1</Value>')
+  })
+})
+
+describe('a ride with no route', () => {
+  const nowhere = (time: number): RideSample => ({
+    time,
+    distanceM: 100,
+    lat: 0,
+    lon: 0,
+    altitudeM: 0,
+    powerW: 160,
+    cadenceRpm: 88,
+    speedMs: 7,
+  })
+
+  it('writes no Position rather than plotting Null Island', () => {
+    // 0,0 is a real place off the coast of Africa, and every consumer would
+    // draw the whole session there.
+    const xml = buildTcx([nowhere(START_MS), nowhere(START_MS + 1000)])
+    expect(xml).not.toContain('<Position>')
+    expect(xml).not.toContain('<LatitudeDegrees>')
+    // Everything that does not need a fix still has to be there.
+    expect(xml).toContain('<DistanceMeters>')
+    expect(xml).toContain('<ns3:Watts>160</ns3:Watts>')
+  })
+
+  it('still writes positions for a route that has them', () => {
+    const located = { ...nowhere(START_MS), lat: 46.5, lon: 11.35 }
+    expect(buildTcx([located, { ...located, time: START_MS + 1000 }])).toContain('<Position>')
+  })
+})

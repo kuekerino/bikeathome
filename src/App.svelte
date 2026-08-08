@@ -21,6 +21,8 @@
     exportRide,
     loadDemoRoute,
     loadRouteFromText,
+    heartRate,
+    pairHeartRate,
     pairShifter,
     pairTrainer,
     resumePairings,
@@ -42,6 +44,10 @@
   let trainerState = $state<ConnectionState>('disconnected')
   let clickState = $state<ConnectionState>('disconnected')
   let clickBattery = $state<number | null>(null)
+  let strapState = $state<ConnectionState>('disconnected')
+  let strapLabel = $state<string | null>(null)
+  let strapBattery = $state<number | null>(null)
+  let strapNotFound = $state(false)
   /** Set once a pairing attempt came back empty, to reveal the wider search. */
   let trainerNotFound = $state(false)
   let clickNotFound = $state(false)
@@ -57,11 +63,19 @@
     }
     zwiftClick.onbattery = (percent) => (clickBattery = percent)
 
+    heartRate.onstate = (state, detail) => {
+      strapState = state
+      if (state === 'error' && detail) error = detail
+    }
+    heartRate.onbattery = (percent) => (strapBattery = percent)
+
     // Devices this browser already has permission for come back on their own.
     // Deliberately not awaited: the page is usable while it tries, and every
     // failure is silent, so there is nothing to wait for.
-    void resumePairings().then(({ trainer }) => {
+    void resumePairings().then(({ trainer, heartRate: strap }) => {
       clickState = zwiftClick.state
+      strapState = heartRate.state
+      if (strap) strapLabel = strap.label
       if (!trainer) return
       trainerLabel = trainer.label
       trainerState = trainer.state
@@ -113,6 +127,24 @@
               { label: 'Pair Zwift Click', run: () => void connectClick() },
               ...(clickNotFound
                 ? [{ label: 'Show all devices', run: () => void connectClick(true) }]
+                : []),
+            ]
+          : [],
+    },
+    {
+      what: 'Heart rate',
+      label: strapState === 'connected' ? (strapLabel ?? heartRate.label) : '',
+      state: strapState,
+      detail:
+        ride.heartRateBpm !== null
+          ? `${ride.heartRateBpm} bpm${strapBattery === null ? '' : ` · ${strapBattery}%`}`
+          : undefined,
+      actions:
+        bluetooth && strapState !== 'connected'
+          ? [
+              { label: 'Pair strap', run: () => void connectStrap() },
+              ...(strapNotFound
+                ? [{ label: 'Show all devices', run: () => void connectStrap(true) }]
                 : []),
             ]
           : [],
@@ -190,6 +222,14 @@
     if (!paired) clickNotFound = true
   }
 
+  async function connectStrap(showEverything = false): Promise<void> {
+    const paired = await attempt(async () => {
+      strapLabel = (await pairHeartRate(showEverything)).label
+      strapState = heartRate.state
+    })
+    if (!paired) strapNotFound = true
+  }
+
   function updateSettings(next: AppSettings): void {
     settings = next
     applySettings(next)
@@ -250,10 +290,15 @@
 
     <PowerPanel
       target={ride.targetPowerW}
+      held={ride.heldPowerW}
       actual={ride.powerW}
+      heartRateBpm={ride.heartRateBpm}
+      overCeiling={ride.overCeiling}
+      cap={settings.heartRateCap}
       disabled={trainerState !== 'connected'}
       onSet={(watts) => engine.setTargetPower(watts)}
       onNudge={(delta) => engine.nudgeTargetPower(delta)}
+      onCapChange={(heartRateCap) => updateSettings({ ...settings, heartRateCap })}
     />
   {/if}
 
