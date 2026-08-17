@@ -8,18 +8,26 @@
    */
   import { ACTION_LABELS, RIDE_ACTIONS, type RideAction } from '../lib/controls/actions'
   import {
+    actionForButton,
     DEFAULT_BINDINGS,
     describeKey,
+    isKnownButton,
     normaliseKey,
     type Bindings,
   } from '../lib/controls/bindings'
 
   interface Props {
     bindings: Bindings
+    /** Button ids this shifter has actually sent, in the order first seen. */
+    seenButtons: readonly string[]
     onChange: (bindings: Bindings) => void
   }
 
-  let { bindings, onChange }: Props = $props()
+  let { bindings, seenButtons, onChange }: Props = $props()
+
+  function setButton(id: string, action: RideAction): void {
+    onChange({ ...bindings, buttons: { ...bindings.buttons, [id]: action } })
+  }
 
   let capturing = $state(false)
 
@@ -58,33 +66,57 @@
   <div class="grid">
     <fieldset>
       <legend>Shifter buttons</legend>
-      <label>
-        One button
-        <select
-          value={bindings.click.up}
-          onchange={(e) => setClick('up', e.currentTarget.value as RideAction)}
-        >
-          {#each RIDE_ACTIONS as action (action)}
-            <option value={action}>{ACTION_LABELS[action]}</option>
-          {/each}
-        </select>
-      </label>
-      <label>
-        The other
-        <select
-          value={bindings.click.down}
-          onchange={(e) => setClick('down', e.currentTarget.value as RideAction)}
-        >
-          {#each RIDE_ACTIONS as action (action)}
-            <option value={action}>{ACTION_LABELS[action]}</option>
-          {/each}
-        </select>
-      </label>
-      <p class="hint">
-        Which physical button is which depends on the firmware and how the unit is mounted, so
-        there is nothing to detect — press one, see what moves, and swap these if it is the wrong
-        way round.
-      </p>
+
+      {#if seenButtons.length === 0}
+        <p class="hint">
+          Press a button on your shifter and it will appear here. Nothing is guessed: whatever
+          your unit reports gets its own row, and you say what it does.
+        </p>
+      {/if}
+
+      {#each seenButtons as id (id)}
+        <div class="row">
+          <kbd class:unknown={!isKnownButton(id)}>{id}</kbd>
+          <select
+            value={actionForButton(bindings, id)}
+            onchange={(e) => setButton(id, e.currentTarget.value as RideAction)}
+          >
+            {#each RIDE_ACTIONS as option (option)}
+              <option value={option}>{ACTION_LABELS[option]}</option>
+            {/each}
+          </select>
+        </div>
+      {/each}
+
+      <details class="fallback">
+        <summary>Defaults for buttons we recognise</summary>
+        <label>
+          Up-ish button
+          <select
+            value={bindings.click.up}
+            onchange={(e) => setClick('up', e.currentTarget.value as RideAction)}
+          >
+            {#each RIDE_ACTIONS as action (action)}
+              <option value={action}>{ACTION_LABELS[action]}</option>
+            {/each}
+          </select>
+        </label>
+        <label>
+          Down-ish button
+          <select
+            value={bindings.click.down}
+            onchange={(e) => setClick('down', e.currentTarget.value as RideAction)}
+          >
+            {#each RIDE_ACTIONS as action (action)}
+              <option value={action}>{ACTION_LABELS[action]}</option>
+            {/each}
+          </select>
+        </label>
+        <p class="hint">
+          Only used for buttons whose id matches a documented layout. Anything else does nothing
+          until you give it a row above.
+        </p>
+      </details>
     </fieldset>
 
     <fieldset>
@@ -185,6 +217,22 @@
 
   .add {
     margin-top: 0.35rem;
+  }
+
+  kbd.unknown {
+    border-style: dashed;
+    color: var(--muted);
+  }
+
+  .fallback summary {
+    padding: 0.2rem 0;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .fallback label {
+    margin-top: 0.4rem;
   }
 
   kbd {

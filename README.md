@@ -94,11 +94,14 @@ the watts off automatically** to get the warning without the intervention.
 
 ### Remapping the controls
 
-Under **Controls**, every key and both shifter buttons can be pointed at any action —
+Under **Controls**, every key and every shifter button can be pointed at any action —
 shifting, the watt steps, pausing. Add a key by pressing it rather than typing its name.
 
-Which physical Click button is which depends on firmware and mounting and cannot be
-detected, so if shifting feels backwards, swap the two **Shifter buttons** entries.
+Shifter buttons work the same way, but they have to introduce themselves first: press
+one and it appears in the list under its own id, and you say what it does. Nothing is
+guessed. A button matching a documented Zwift layout arrives already shifting; anything
+else does nothing until you bind it, because guessing wrong means shifting the wrong
+way at the wrong moment.
 
 ### Pairing once instead of every time
 

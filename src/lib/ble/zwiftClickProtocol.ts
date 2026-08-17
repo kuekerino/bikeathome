@@ -40,23 +40,25 @@ const MessageType = {
 } as const
 
 /**
- * Button masks in the newer keypad report, where a *cleared* bit means
- * pressed. These are the Zwift Ride's four shift buttons; a Click v2 uses a
- * subset, and which subset is not firmly established — hence the keyboard
- * staying available as a fallback whatever happens.
+ * A single physical button, named so a binding can outlive our guesses about
+ * the layout — `v1:1` for a field in the original report, `v2:0x200` for a bit
+ * in the newer bitmap.
  */
-const ShiftMask = {
-  upLeft: 0x200,
-  downLeft: 0x400,
-  upRight: 0x2000,
-  downRight: 0x4000,
-} as const
+export type ButtonId = string
 
 /** Which report format a button message arrived in. */
 export type ButtonSource = 'clickV1' | 'keypadV2'
 
 export type ClickMessage =
-  | { kind: 'buttons'; source: ButtonSource; plus: boolean; minus: boolean }
+  /** The original report names its buttons by field. */
+  | { kind: 'buttons'; source: 'clickV1'; pressed: ButtonId[] }
+  /**
+   * The newer report is a bitmap where a *cleared* bit means pressed. Which
+   * bits are buttons cannot be read from one frame — a bit that is absent from
+   * a short bitmap reads exactly like a bit being held down — so the raw value
+   * is passed on and {@link ClickShiftDetector} works it out over time.
+   */
+  | { kind: 'buttons'; source: 'keypadV2'; bitmap: number }
   | { kind: 'battery'; percent: number }
   | { kind: 'keepalive' }
   | { kind: 'disconnect' }
@@ -87,23 +89,20 @@ export function parseClickMessage(bytes: Uint8Array): ClickMessage {
 
   switch (type) {
     case MessageType.clickV1: {
-      // Zero means pressed here, which is the opposite of the obvious reading.
       const plus = fields.get(1)
       const minus = fields.get(2)
       if (plus === undefined && minus === undefined) return { kind: 'ignored', type }
-      return { kind: 'buttons', source: 'clickV1', plus: plus === 0, minus: minus === 0 }
+      // Zero means pressed here, which is the opposite of the obvious reading.
+      const pressed: ButtonId[] = []
+      if (plus === 0) pressed.push('v1:1')
+      if (minus === 0) pressed.push('v1:2')
+      return { kind: 'buttons', source: 'clickV1', pressed }
     }
 
     case MessageType.keypadV2: {
-      const map = fields.get(1)
-      if (map === undefined) return { kind: 'ignored', type }
-      const pressed = (mask: number) => (map & mask) === 0
-      return {
-        kind: 'buttons',
-        source: 'keypadV2',
-        plus: pressed(ShiftMask.upLeft) || pressed(ShiftMask.upRight),
-        minus: pressed(ShiftMask.downLeft) || pressed(ShiftMask.downRight),
-      }
+      const bitmap = fields.get(1)
+      if (bitmap === undefined) return { kind: 'ignored', type }
+      return { kind: 'buttons', source: 'keypadV2', bitmap }
     }
 
     case MessageType.battery: {
@@ -139,30 +138,49 @@ export function parseClickMessage(bytes: Uint8Array): ClickMessage {
  * first format seen wins and the other is ignored for the rest of the session.
  */
 export class ClickShiftDetector {
-  private plus = false
-  private minus = false
+  private held = new Set<ButtonId>()
   private source: ButtonSource | null = null
+  /**
+   * Bits ever seen *set* in the bitmap. A bit that has only ever been zero is
+   * not a button being held down — it is a bit this device does not send. The
+   * bitmap is a varint, so a device with fewer buttons simply emits a shorter
+   * number, and every bit above it reads as pressed forever. Treating those as
+   * real is what makes two buttons appear to do the same thing.
+   */
+  private everSet = 0
 
-  update(message: ClickMessage): (1 | -1)[] {
+  /** @returns the buttons newly pressed by this message. */
+  update(message: ClickMessage): ButtonId[] {
     if (message.kind !== 'buttons') return []
 
     this.source ??= message.source
     if (message.source !== this.source) return []
 
-    const shifts: (1 | -1)[] = []
-    if (message.plus && !this.plus) shifts.push(1)
-    if (message.minus && !this.minus) shifts.push(-1)
+    const pressed =
+      message.source === 'clickV1' ? message.pressed : this.bitmapButtons(message.bitmap)
 
-    this.plus = message.plus
-    this.minus = message.minus
-    return shifts
+    const fresh = pressed.filter((id) => !this.held.has(id))
+    this.held = new Set(pressed)
+    return fresh
+  }
+
+  private bitmapButtons(bitmap: number): ButtonId[] {
+    this.everSet |= bitmap
+
+    const pressed: ButtonId[] = []
+    for (let bit = 1; bit <= this.everSet; bit <<= 1) {
+      if ((this.everSet & bit) !== 0 && (bitmap & bit) === 0) {
+        pressed.push(`v2:0x${bit.toString(16)}`)
+      }
+    }
+    return pressed
   }
 
   /** Forget held buttons, so a reconnect cannot fire a phantom shift. */
   reset(): void {
-    this.plus = false
-    this.minus = false
+    this.held.clear()
     this.source = null
+    this.everSet = 0
   }
 }
 

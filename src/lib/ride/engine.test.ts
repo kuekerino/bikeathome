@@ -232,10 +232,10 @@ describe('shifter wiring', () => {
     engine.addShifter(shifter)
 
     const start = engine.snapshot().gear
-    shifter.press(1)
+    shifter.press('v1:1')
     expect(engine.snapshot().gear).toBe(start + 1)
-    shifter.press(-1)
-    shifter.press(-1)
+    shifter.press('v1:2')
+    shifter.press('v1:2')
     expect(engine.snapshot().gear).toBe(start - 1)
   })
 
@@ -246,7 +246,7 @@ describe('shifter wiring', () => {
     detach()
 
     const start = engine.snapshot().gear
-    shifter.press(1)
+    shifter.press('v1:1')
     expect(engine.snapshot().gear).toBe(start)
   })
 
@@ -259,8 +259,8 @@ describe('shifter wiring', () => {
     engine.addShifter(keyboard)
 
     const start = engine.snapshot().gear
-    click.press(1)
-    keyboard.press(1)
+    click.press('v1:1')
+    keyboard.press('v1:1')
     expect(engine.snapshot().gear).toBe(start + 2)
   })
 })
@@ -417,18 +417,18 @@ describe('bound controls', () => {
   it('sends a shifter button through the bindings, not straight to the gears', () => {
     const engine = new RideEngine({ autoPauseSeconds: 0 })
     engine.setRoute(flatRoute(2000))
-    engine.bindings = { keys: {}, click: { up: 'powerUp10', down: 'shiftDown' } }
+    engine.bindings = { keys: {}, buttons: {}, click: { up: 'powerUp10', down: 'shiftDown' } }
 
     const shifter = new FakeShifter()
     engine.addShifter(shifter)
 
     const gear = engine.snapshot().gear
-    shifter.press(1)
+    shifter.press('v1:1')
     // The "up" button was bound to watts, so the gear must not have moved.
     expect(engine.snapshot().gear).toBe(gear)
     expect(engine.snapshot().targetPowerW).toBe(10)
 
-    shifter.press(-1)
+    shifter.press('v1:2')
     expect(engine.snapshot().gear).toBe(gear - 1)
   })
 

@@ -4,7 +4,6 @@ import {
   parseClickMessage,
   readHandshake,
   RIDE_ON,
-  type ButtonSource,
   type ClickMessage,
 } from './zwiftClickProtocol'
 
@@ -56,20 +55,17 @@ describe('original Click button reports', () => {
     expect(parseClickMessage(bytes(0x37, 0x08, 0x00, 0x10, 0x01))).toEqual({
       kind: 'buttons',
       source: 'clickV1',
-      plus: true,
-      minus: false,
+      pressed: ['v1:1'],
     })
     expect(parseClickMessage(bytes(0x37, 0x08, 0x01, 0x10, 0x00))).toEqual({
       kind: 'buttons',
       source: 'clickV1',
-      plus: false,
-      minus: true,
+      pressed: ['v1:2'],
     })
     expect(parseClickMessage(bytes(0x37, 0x08, 0x01, 0x10, 0x01))).toEqual({
       kind: 'buttons',
       source: 'clickV1',
-      plus: false,
-      minus: false,
+      pressed: [],
     })
   })
 
@@ -77,8 +73,7 @@ describe('original Click button reports', () => {
     expect(parseClickMessage(bytes(0x37, 0x08, 0x00, 0x10, 0x00))).toEqual({
       kind: 'buttons',
       source: 'clickV1',
-      plus: true,
-      minus: true,
+      pressed: ['v1:1', 'v1:2'],
     })
   })
 
@@ -90,39 +85,25 @@ describe('original Click button reports', () => {
 describe('newer keypad reports', () => {
   const ALL_RELEASED = 0xffff
 
-  it('reads a cleared bit as a press', () => {
-    const upLeft = parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED & ~0x200)))
-    expect(upLeft).toEqual({ kind: 'buttons', source: 'keypadV2', plus: true, minus: false })
-
-    const downRight = parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED & ~0x4000)))
-    expect(downRight).toEqual({ kind: 'buttons', source: 'keypadV2', plus: false, minus: true })
-  })
-
-  it('reads nothing pressed when every bit is set', () => {
-    expect(parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED)))).toEqual({
+  // The parse hands the bitmap on untouched: which bits are buttons cannot be
+  // told from a single frame, so that decision belongs to the detector.
+  it('passes the bitmap through', () => {
+    expect(parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED & ~0x200)))).toEqual({
       kind: 'buttons',
       source: 'keypadV2',
-      plus: false,
-      minus: false,
+      bitmap: 0xfdff,
     })
-  })
-
-  it('accepts either side of the controller', () => {
-    for (const mask of [0x200, 0x2000]) {
-      const message = parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED & ~mask)))
-      expect(message).toMatchObject({ plus: true })
-    }
-    for (const mask of [0x400, 0x4000]) {
-      const message = parseClickMessage(bytes(0x23, 0x08, ...varint(ALL_RELEASED & ~mask)))
-      expect(message).toMatchObject({ minus: true })
-    }
   })
 
   it('reads a multi-byte varint bitmap', () => {
     // 0xFDFF needs three varint bytes, so this also exercises the decoder.
     const encoded = varint(0xfdff)
     expect(encoded).toHaveLength(3)
-    expect(parseClickMessage(bytes(0x23, 0x08, ...encoded))).toMatchObject({ plus: true })
+    expect(parseClickMessage(bytes(0x23, 0x08, ...encoded))).toMatchObject({ bitmap: 0xfdff })
+  })
+
+  it('ignores a report with no bitmap at all', () => {
+    expect(parseClickMessage(bytes(0x23))).toEqual({ kind: 'ignored', type: 0x23 })
   })
 })
 
@@ -155,7 +136,7 @@ describe('other messages', () => {
     // Field 1 is a varint; the 0x0a tag that follows is length-delimited, so
     // the walk should stop there rather than misread the rest.
     const message = parseClickMessage(bytes(0x37, 0x08, 0x00, 0x0a, 0x02, 0xff, 0xff))
-    expect(message).toEqual({ kind: 'buttons', source: 'clickV1', plus: true, minus: false })
+    expect(message).toEqual({ kind: 'buttons', source: 'clickV1', pressed: ['v1:1'] })
   })
 
   it('survives a truncated varint', () => {
@@ -164,62 +145,92 @@ describe('other messages', () => {
 })
 
 describe('ClickShiftDetector', () => {
-  const press = (
-    plus: boolean,
-    minus: boolean,
-    source: ButtonSource = 'clickV1',
-  ): ClickMessage => ({
+  /** A clickV1 report, which names its buttons directly. */
+  const v1 = (...pressed: string[]): ClickMessage => ({
     kind: 'buttons',
-    source,
-    plus,
-    minus,
+    source: 'clickV1',
+    pressed,
   })
 
-  it('does not double-shift when both report formats are interleaved', () => {
+  /** A keypadV2 report: every button bit set except the ones held down. */
+  const v2 = (all: number, ...down: number[]): ClickMessage => ({
+    kind: 'buttons',
+    source: 'keypadV2',
+    bitmap: down.reduce((map, bit) => map & ~bit, all),
+  })
+
+  it('does not double-report when both formats are interleaved', () => {
     const detector = new ClickShiftDetector()
-    // One physical press, reported in the format this device led with.
-    expect(detector.update(press(true, false, 'clickV1'))).toEqual([1])
-    // The same press is invisible to the other format's bitmap, so taking it
-    // at face value would read as a release and let the next repeat re-fire.
-    expect(detector.update(press(false, false, 'keypadV2'))).toEqual([])
-    expect(detector.update(press(true, false, 'clickV1'))).toEqual([])
-    // Still one shift for one press.
-    expect(detector.update(press(false, false, 'clickV1'))).toEqual([])
-    expect(detector.update(press(true, false, 'clickV1'))).toEqual([1])
+    expect(detector.update(v1('v1:1'))).toEqual(['v1:1'])
+    // The same press is invisible to the other format, so taking it at face
+    // value would read as a release and let the next repeat re-fire.
+    expect(detector.update(v2(0xffff))).toEqual([])
+    expect(detector.update(v1('v1:1'))).toEqual([])
+    expect(detector.update(v1())).toEqual([])
+    expect(detector.update(v1('v1:1'))).toEqual(['v1:1'])
   })
 
   it('follows whichever format the device leads with', () => {
     const detector = new ClickShiftDetector()
-    expect(detector.update(press(true, false, 'keypadV2'))).toEqual([1])
-    expect(detector.update(press(true, false, 'clickV1'))).toEqual([])
+    detector.update(v2(0xffff))
+    expect(detector.update(v2(0xffff, 0x200))).toEqual(['v2:0x200'])
+    expect(detector.update(v1('v1:1'))).toEqual([])
   })
 
   it('relearns the format after a reconnect', () => {
     const detector = new ClickShiftDetector()
-    detector.update(press(true, false, 'clickV1'))
+    detector.update(v1('v1:1'))
     detector.reset()
-    expect(detector.update(press(true, false, 'keypadV2'))).toEqual([1])
+    detector.update(v2(0xffff))
+    expect(detector.update(v2(0xffff, 0x200))).toEqual(['v2:0x200'])
   })
 
-  it('shifts once per press, not once per message', () => {
+  it('reports once per press, not once per message', () => {
     const detector = new ClickShiftDetector()
-    expect(detector.update(press(true, false))).toEqual([1])
+    expect(detector.update(v1('v1:1'))).toEqual(['v1:1'])
     // The device repeats while held; holding must not run up the block.
-    expect(detector.update(press(true, false))).toEqual([])
-    expect(detector.update(press(true, false))).toEqual([])
-    expect(detector.update(press(false, false))).toEqual([])
-    expect(detector.update(press(true, false))).toEqual([1])
+    expect(detector.update(v1('v1:1'))).toEqual([])
+    expect(detector.update(v1('v1:1'))).toEqual([])
+    expect(detector.update(v1())).toEqual([])
+    expect(detector.update(v1('v1:1'))).toEqual(['v1:1'])
   })
 
-  it('shifts down on the other button', () => {
+  it('ignores bits the device never sends', () => {
+    // The bug this exists for: a device with a narrow bitmap leaves every
+    // higher bit at zero, which is indistinguishable from a button held down.
+    // Treating those as real made two buttons appear to do the same thing.
     const detector = new ClickShiftDetector()
-    expect(detector.update(press(false, true))).toEqual([-1])
-    expect(detector.update(press(false, false))).toEqual([])
+    // At rest this unit sends 0x0FFF: nothing above bit 11 exists on it.
+    expect(detector.update(v2(0x0fff))).toEqual([])
+    expect(detector.update(v2(0x0fff, 0x200))).toEqual(['v2:0x200'])
+    expect(detector.update(v2(0x0fff))).toEqual([])
+    expect(detector.update(v2(0x0fff, 0x400))).toEqual(['v2:0x400'])
+  })
+
+  it('learns a button the first time it is released, not pressed', () => {
+    // If the very first frame arrives with a button already down, that bit has
+    // never been seen set, so it cannot yet be told apart from padding.
+    const detector = new ClickShiftDetector()
+    expect(detector.update(v2(0x0fff, 0x200))).toEqual([])
+    expect(detector.update(v2(0x0fff))).toEqual([])
+    expect(detector.update(v2(0x0fff, 0x200))).toEqual(['v2:0x200'])
+  })
+
+  it('reports both buttons separately when both are held', () => {
+    const detector = new ClickShiftDetector()
+    detector.update(v2(0x0fff))
+    expect(detector.update(v2(0x0fff, 0x200, 0x400)).sort()).toEqual(['v2:0x200', 'v2:0x400'])
+  })
+
+  it('reports the other button separately', () => {
+    const detector = new ClickShiftDetector()
+    expect(detector.update(v1('v1:2'))).toEqual(['v1:2'])
+    expect(detector.update(v1())).toEqual([])
   })
 
   it('reports both buttons pressed together', () => {
     const detector = new ClickShiftDetector()
-    expect(detector.update(press(true, true))).toEqual([1, -1])
+    expect(detector.update(v1('v1:1', 'v1:2'))).toEqual(['v1:1', 'v1:2'])
   })
 
   it('ignores everything that is not a button report', () => {
@@ -231,8 +242,8 @@ describe('ClickShiftDetector', () => {
   // Reconnecting while a button happened to be down should not shift.
   it('forgets held buttons on reset', () => {
     const detector = new ClickShiftDetector()
-    detector.update(press(true, false))
+    detector.update(v1('v1:1'))
     detector.reset()
-    expect(detector.update(press(true, false))).toEqual([1])
+    expect(detector.update(v1('v1:1'))).toEqual(['v1:1'])
   })
 })

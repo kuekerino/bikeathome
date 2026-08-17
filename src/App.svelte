@@ -306,6 +306,7 @@
 
   <ControlsPanel
     bindings={settings.bindings}
+    seenButtons={ride.seenButtons}
     onChange={(bindings) => updateSettings({ ...settings, bindings })}
   />
 

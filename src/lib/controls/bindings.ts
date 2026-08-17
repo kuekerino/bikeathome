@@ -13,6 +13,12 @@ export interface Bindings {
   keys: Record<string, RideAction>
   /** The Click's two buttons, whichever way round they turn out to be. */
   click: { up: RideAction; down: RideAction }
+  /**
+   * Per-button overrides, keyed by the id the device reports. Only these can
+   * describe a unit whose layout we guessed wrong — which is most of the point,
+   * since the layout is not documented and varies with firmware.
+   */
+  buttons: Record<string, RideAction>
 }
 
 export const DEFAULT_BINDINGS: Bindings = {
@@ -29,6 +35,37 @@ export const DEFAULT_BINDINGS: Bindings = {
     ' ': 'togglePause',
   },
   click: { up: 'shiftUp', down: 'shiftDown' },
+  buttons: {},
+}
+
+/**
+ * Which of the two roles a known button plays, before the rider says otherwise.
+ * Anything not listed has no default at all: an unrecognised button does
+ * nothing until it is bound, rather than guessing and shifting the wrong way.
+ */
+const DEFAULT_ROLE: Record<string, 'up' | 'down'> = {
+  'v1:1': 'up',
+  'v1:2': 'down',
+  'v2:0x200': 'up',
+  'v2:0x400': 'down',
+  'v2:0x2000': 'up',
+  'v2:0x4000': 'down',
+}
+
+/** What a shifter button should do: the rider's override, then the default. */
+export function actionForButton(bindings: Bindings, id: string): RideAction {
+  const bound = bindings.buttons[id]
+  if (bound !== undefined) return bound
+
+  const role = DEFAULT_ROLE[id]
+  if (role === 'up') return bindings.click.up
+  if (role === 'down') return bindings.click.down
+  return 'nothing'
+}
+
+/** Whether this button is one we would have guessed at. */
+export function isKnownButton(id: string): boolean {
+  return id in DEFAULT_ROLE
 }
 
 /**
@@ -64,7 +101,7 @@ export function sanitizeBindings(raw: unknown, legacySwapButtons = false): Bindi
     : DEFAULT_BINDINGS.click
 
   if (typeof raw !== 'object' || raw === null) {
-    return { keys: { ...DEFAULT_BINDINGS.keys }, click: fallbackClick }
+    return { keys: { ...DEFAULT_BINDINGS.keys }, click: fallbackClick, buttons: {} }
   }
 
   const input = raw as Partial<Record<keyof Bindings, unknown>>
@@ -78,7 +115,15 @@ export function sanitizeBindings(raw: unknown, legacySwapButtons = false): Bindi
 
   const click = (input.click ?? {}) as Partial<Record<'up' | 'down', unknown>>
 
+  const buttons: Record<string, RideAction> = {}
+  if (typeof input.buttons === 'object' && input.buttons !== null) {
+    for (const [id, action] of Object.entries(input.buttons)) {
+      if (id.length > 0 && isRideAction(action)) buttons[id] = action
+    }
+  }
+
   return {
+    buttons,
     // An empty table is a legitimate choice — a rider who unbound everything
     // should not silently get the defaults back on the next load.
     keys: input.keys === undefined ? { ...DEFAULT_BINDINGS.keys } : keys,

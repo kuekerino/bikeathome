@@ -31,7 +31,7 @@ import {
 } from './heartRateCap'
 import type { Shifter, Trainer, TrainerData } from '../ble/types'
 import { POWER_STEP, type RideAction } from '../controls/actions'
-import { DEFAULT_BINDINGS, type Bindings } from '../controls/bindings'
+import { actionForButton, DEFAULT_BINDINGS, type Bindings } from '../controls/bindings'
 
 export type RideStatus = 'idle' | 'ready' | 'riding' | 'paused' | 'finished'
 
@@ -78,6 +78,8 @@ export interface RideSnapshot {
   heartRateBpm: number | null
   /** The rate is over the ceiling right now. */
   overCeiling: boolean
+  /** Every shifter button id seen this session, in the order first pressed. */
+  seenButtons: readonly string[]
   elapsedSeconds: number
   elevation: number
   climbed: number
@@ -132,6 +134,7 @@ export class RideEngine {
 
   private trainer: Trainer | null = null
   private readonly shifters = new Set<Shifter>()
+  private buttonsSeen: readonly string[] = []
   private readonly listeners = new Set<(snapshot: RideSnapshot) => void>()
 
   constructor(options: RideEngineOptions = {}) {
@@ -160,15 +163,22 @@ export class RideEngine {
    */
   addShifter(shifter: Shifter): () => void {
     this.shifters.add(shifter)
-    // A shifter reports which of its two buttons was pressed. What that button
-    // means is the rider's to decide, so it goes through the bindings rather
-    // than straight to the gears.
-    shifter.onshift = (direction) =>
-      this.perform(direction === 1 ? this.bindings.click.up : this.bindings.click.down)
+    // A shifter reports which button was pressed. What that button means is
+    // the rider's to decide, so it goes through the bindings rather than
+    // straight to the gears.
+    shifter.onbutton = (id) => {
+      // Remembered so the settings panel can offer a row for a button we do
+      // not recognise — which is the only way to bind one.
+      if (!this.buttonsSeen.includes(id)) {
+        this.buttonsSeen = [...this.buttonsSeen, id]
+      }
+      this.perform(actionForButton(this.bindings, id))
+      this.notify()
+    }
     this.notify()
 
     return () => {
-      shifter.onshift = null
+      shifter.onbutton = null
       this.shifters.delete(shifter)
       this.notify()
     }
@@ -401,6 +411,7 @@ export class RideEngine {
           : Math.round(this.appliedPowerW ?? this.targetPowerW),
       heartRateBpm: this.heartRateBpm,
       overCeiling: isOverCeiling(this.heartRateBpm, this.heartRateCap),
+      seenButtons: this.buttonsSeen,
       elapsedSeconds: this.elapsedMs / 1000,
       elevation: position?.ele ?? 0,
       climbed: this.climbed,

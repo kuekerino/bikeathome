@@ -84,7 +84,7 @@ export class FakeTrainer implements Trainer {
 export class FakeShifter implements Shifter {
   readonly label = 'Fake shifter'
   state: ConnectionState = 'connected'
-  onshift: ((direction: 1 | -1) => void) | null = null
+  onbutton: ((id: string) => void) | null = null
   onbattery: ((percent: number) => void) | null = null
   onstate: ((state: ConnectionState, detail?: string) => void) | null = null
 
@@ -96,7 +96,8 @@ export class FakeShifter implements Shifter {
     this.state = 'disconnected'
   }
 
-  press(direction: 1 | -1): void {
-    this.onshift?.(direction)
+  /** Press a button by id, as the real device reports it. */
+  press(id: string): void {
+    this.onbutton?.(id)
   }
 }

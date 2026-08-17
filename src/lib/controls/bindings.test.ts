@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  actionForButton,
   actionForKey,
   DEFAULT_BINDINGS,
   describeKey,
@@ -79,5 +80,36 @@ describe('sanitizeBindings', () => {
   it('falls back per side, not all or nothing', () => {
     const bindings = sanitizeBindings({ click: { up: 'togglePause' } })
     expect(bindings.click).toEqual({ up: 'togglePause', down: 'shiftDown' })
+  })
+})
+
+describe('actionForButton', () => {
+  const bindings = { ...DEFAULT_BINDINGS, buttons: {} }
+
+  it('uses the documented layout for buttons we recognise', () => {
+    expect(actionForButton(bindings, 'v1:1')).toBe('shiftUp')
+    expect(actionForButton(bindings, 'v2:0x400')).toBe('shiftDown')
+  })
+
+  it('does nothing at all for a button we do not recognise', () => {
+    // Guessing would shift the wrong way, which is worse than being inert
+    // until the rider says what the button is for.
+    expect(actionForButton(bindings, 'v2:0x8000')).toBe('nothing')
+  })
+
+  it('lets an override win over the documented layout', () => {
+    const overridden = { ...bindings, buttons: { 'v1:1': 'powerUp10' as const } }
+    expect(actionForButton(overridden, 'v1:1')).toBe('powerUp10')
+  })
+
+  it('binds a button no layout describes', () => {
+    const learned = { ...bindings, buttons: { 'v2:0x8000': 'shiftDown' as const } }
+    expect(actionForButton(learned, 'v2:0x8000')).toBe('shiftDown')
+  })
+
+  it('still honours a swapped pair for recognised buttons', () => {
+    const swapped = { ...bindings, click: { up: 'shiftDown' as const, down: 'shiftUp' as const } }
+    expect(actionForButton(swapped, 'v1:1')).toBe('shiftDown')
+    expect(actionForButton(swapped, 'v1:2')).toBe('shiftUp')
   })
 })

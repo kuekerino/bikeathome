@@ -44,6 +44,11 @@ export interface Trainer extends Device {
 }
 
 export interface Shifter extends Device {
-  onshift: ((direction: 1 | -1) => void) | null
+  /**
+   * Which physical button was pressed, as an opaque id. What it *means* is
+   * bound elsewhere: the device cannot know, and on reverse-engineered
+   * hardware neither can we until the rider tells us.
+   */
+  onbutton: ((id: string) => void) | null
   onbattery: ((percent: number) => void) | null
 }

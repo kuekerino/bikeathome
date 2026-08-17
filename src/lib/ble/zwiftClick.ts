@@ -31,7 +31,7 @@ const RECONNECT_BASE_MS = 1000
 const RECONNECT_CAP_MS = 20_000
 
 export class ZwiftClick implements Shifter {
-  onshift: ((direction: 1 | -1) => void) | null = null
+  onbutton: ((id: string) => void) | null = null
   onbattery: ((percent: number) => void) | null = null
   onstate: ((state: ConnectionState, detail?: string) => void) | null = null
 
@@ -197,7 +197,7 @@ export class ZwiftClick implements Shifter {
     }
 
     // Which button this is, not what it means: the meaning is bound elsewhere.
-    for (const direction of this.shifts.update(message)) this.onshift?.(direction)
+    for (const id of this.shifts.update(message)) this.onbutton?.(id)
   }
 
   private readonly onDropped = (): void => {
