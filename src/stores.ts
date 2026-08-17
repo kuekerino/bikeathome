@@ -12,6 +12,7 @@ import type { Shifter, Trainer } from './lib/ble/types'
 import { ZwiftClick } from './lib/ble/zwiftClick'
 import { KeyboardControls } from './lib/controls/keyboard'
 import { parseGpx } from './lib/gpx/parser'
+import { parseZwo } from './lib/workout/zwo'
 import { Route } from './lib/gpx/route'
 import { RideEngine } from './lib/ride/engine'
 import { RideRecorder } from './lib/ride/recorder'
@@ -84,6 +85,7 @@ export function applySettings(settings: AppSettings): void {
   ftms?.configure(settings.rider)
   engine.bindings = settings.bindings
   engine.heartRateCap = settings.heartRateCap
+  engine.setFtp(settings.ftpW)
   keyboard.configure(settings.bindings)
   saveSettings(settings)
 }
@@ -214,6 +216,15 @@ export function bluetoothAvailable(): boolean {
 export function loadRouteFromText(xml: string): void {
   engine.setRoute(Route.from(parseGpx(xml)))
   recorder.reset()
+}
+
+/** Loads a Zwift workout. It drives the power; the route still drives distance. */
+export function loadWorkoutFromText(xml: string): void {
+  engine.setWorkout(parseZwo(xml))
+}
+
+export function clearWorkout(): void {
+  engine.setWorkout(null)
 }
 
 /** Where free ride starts if the rider has not set a power before. */

@@ -12,6 +12,12 @@ prescribed in watts drifts out of its zone through no fault of the rider. If the
 is zone discipline, watts alone cannot fix it. Standard BLE service, no protocol
 archaeology, and it now reaches the dashboard and the export.
 
+**Structured workouts**, reading Zwift `.zwo`: steps, ramps, repeats that stay repeats,
+cadence targets, free-ride blocks, skip and back. Absolute watts are first-class
+alongside percentages, and the FTP setting exists. What is still missing from the
+section below is the **ramp test** — the thing that produces the FTP in the first place
+— and lap structure in the export.
+
 **A heart rate ceiling**, which came with it: hold 145 W but never above 137 bpm, and the
 target eases off by itself when the rate crosses. Rare in other software, and it turns a
 discipline problem into a setting.
@@ -41,11 +47,10 @@ minute as the result. It also happens to be the smallest useful workout, so it i
 first thing to build once steps and ramps exist. It should write the FTP it measures
 straight into settings, so every relative workout comes alive at the end of it.
 
-## Structured intervals
+## Structured intervals — mostly done
 
-Manual watt mode is the machinery an interval session needs — something has to hold a
-number, and now something does. What is missing is anything that changes the number on a
-schedule.
+What is left: the ramp test, TCX laps, and a text DSL for authoring. The design notes
+below are kept because they are what the implementation follows.
 
 ### The shape
 

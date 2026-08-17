@@ -10,6 +10,7 @@
   import RouteLoader from './components/RouteLoader.svelte'
   import RouteMap from './components/RouteMap.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
+  import WorkoutPanel from './components/WorkoutPanel.svelte'
   import { bluetoothNote, currentPlatform } from './lib/browserSupport'
   import type { Route } from './lib/gpx/route'
   import { loadSettings, type AppSettings } from './lib/settings'
@@ -21,6 +22,8 @@
     exportRide,
     loadDemoRoute,
     loadRouteFromText,
+    loadWorkoutFromText,
+    clearWorkout,
     heartRate,
     pairHeartRate,
     pairShifter,
@@ -286,6 +289,15 @@
       onEnd={() => engine.end()}
       onShift={(direction) => engine.shift(direction)}
       onExport={() => void attempt(exportRide)}
+    />
+
+    <WorkoutPanel
+      progress={ride.workout}
+      ftpW={settings.ftpW}
+      onLoad={(xml) => void attempt(() => loadWorkoutFromText(xml))}
+      onClear={clearWorkout}
+      onSkip={(direction) => engine.skipStep(direction)}
+      onFtp={(ftpW) => updateSettings({ ...settings, ftpW })}
     />
 
     <PowerPanel

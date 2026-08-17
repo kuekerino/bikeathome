@@ -17,6 +17,8 @@ export const RIDE_ACTIONS = [
   'powerDown50',
   'togglePower',
   'togglePause',
+  'nextStep',
+  'previousStep',
   'nothing',
 ] as const
 
@@ -33,6 +35,8 @@ export const ACTION_LABELS: Record<RideAction, string> = {
   powerDown50: '−50 W',
   togglePower: 'Hold power on/off',
   togglePause: 'Pause or resume',
+  nextStep: 'Skip to next step',
+  previousStep: 'Back a step',
   nothing: 'Nothing',
 }
 

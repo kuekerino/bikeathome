@@ -16,6 +16,7 @@ function snapshot(overrides: Partial<RideSnapshot> = {}): RideSnapshot {
     heartRateBpm: null,
     overCeiling: false,
     seenButtons: [],
+    workout: null,
     cadenceRpm: 0,
     gear: 12,
     gearRatio: 1,

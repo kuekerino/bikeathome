@@ -24,6 +24,14 @@ import {
 } from '../physics/gears'
 import { MOTION_AT_REST, stepMotion, type MotionState } from '../physics/motion'
 import {
+  flatten,
+  stepAt,
+  totalSeconds,
+  wattsAt,
+  type FlatStep,
+  type Workout,
+} from '../workout/model'
+import {
   DEFAULT_HEART_RATE_CAP,
   isOverCeiling,
   nextAppliedPower,
@@ -80,12 +88,28 @@ export interface RideSnapshot {
   overCeiling: boolean
   /** Every shifter button id seen this session, in the order first pressed. */
   seenButtons: readonly string[]
+  workout: WorkoutProgress | null
   elapsedSeconds: number
   elevation: number
   climbed: number
   routeAscent: number
   lat: number
   lon: number
+}
+
+/** What the panel needs to show, without reaching into the engine. */
+export interface WorkoutProgress {
+  name: string
+  /** Seconds into the workout. Advances only while riding. */
+  elapsedSeconds: number
+  totalSeconds: number
+  step: FlatStep | null
+  next: FlatStep | null
+  stepIndex: number
+  stepCount: number
+  /** Set when a step wants a fraction of an FTP that has not been set. */
+  blocked: boolean
+  finished: boolean
 }
 
 export interface RideEngineOptions {
@@ -135,6 +159,12 @@ export class RideEngine {
   private trainer: Trainer | null = null
   private readonly shifters = new Set<Shifter>()
   private buttonsSeen: readonly string[] = []
+
+  private workout: Workout | null = null
+  private workoutSteps: FlatStep[] = []
+  /** Seconds of *riding* since the workout started, so pausing pauses it. */
+  private workoutElapsed = 0
+  private ftpW: number | null = null
   private readonly listeners = new Set<(snapshot: RideSnapshot) => void>()
 
   constructor(options: RideEngineOptions = {}) {
@@ -195,6 +225,41 @@ export class RideEngine {
     this.mode = 'route'
     this.reset()
     this.status = 'ready'
+    this.notify()
+  }
+
+  /**
+   * Loads a structured workout, which then drives the target power.
+   *
+   * The route, if there is one, still decides distance and gradient: the
+   * workout says how hard, the road says how far.
+   */
+  setWorkout(workout: Workout | null): void {
+    this.workout = workout
+    this.workoutSteps = workout ? flatten(workout) : []
+    this.workoutElapsed = 0
+    if (workout === null) this.setTargetPower(null)
+    else this.driveWorkout(0)
+    this.notify()
+  }
+
+  setFtp(ftpW: number | null): void {
+    this.ftpW = ftpW
+    if (this.workout) this.driveWorkout(0)
+    this.notify()
+  }
+
+  /** Jumps to the start of the next step, or the previous one. */
+  skipStep(direction: 1 | -1): void {
+    if (this.workoutSteps.length === 0) return
+
+    const current = stepAt(this.workoutSteps, this.workoutElapsed)
+    const index = current ? this.workoutSteps.indexOf(current) : this.workoutSteps.length
+    const target = this.workoutSteps[Math.min(this.workoutSteps.length - 1, Math.max(0, index + direction))]
+    if (!target) return
+
+    this.workoutElapsed = target.startSeconds
+    this.driveWorkout(0)
     this.notify()
   }
 
@@ -279,6 +344,12 @@ export class RideEngine {
         else if (this.status === 'paused') this.resume()
         else this.start()
         return
+      case 'nextStep':
+        this.skipStep(1)
+        return
+      case 'previousStep':
+        this.skipStep(-1)
+        return
       case 'nothing':
         return
     }
@@ -293,10 +364,7 @@ export class RideEngine {
    * the legs feel, not where the rider ends up.
    */
   setTargetPower(watts: number | null): void {
-    const next =
-      watts === null
-        ? null
-        : Math.round(Math.min(POWER_LIMITS.max, Math.max(POWER_LIMITS.min, watts)))
+    const next = clampPower(watts)
     if (next === this.targetPowerW) return
 
     this.targetPowerW = next
@@ -318,6 +386,19 @@ export class RideEngine {
 
   get targetPower(): number | null {
     return this.targetPowerW
+  }
+
+  /**
+   * Moves the target without cancelling a heart-rate hold-back, for changes the
+   * rider did not make by hand.
+   */
+  private setChosenPower(watts: number | null): void {
+    const next = clampPower(watts)
+    if (next === this.targetPowerW) return
+
+    this.targetPowerW = next
+    if (next === null) this.appliedPowerW = null
+    this.pushGradient(this.computeTrainerGradient())
   }
 
   /** The latest strap reading. `null` clears it when the strap goes away. */
@@ -374,6 +455,7 @@ export class RideEngine {
     }
 
     this.checkAutoPause(dtSeconds)
+    this.driveWorkout(dtSeconds)
     this.applyHeartRateCap(dtSeconds)
     this.pushGradient(this.computeTrainerGradient())
     this.notify()
@@ -412,12 +494,36 @@ export class RideEngine {
       heartRateBpm: this.heartRateBpm,
       overCeiling: isOverCeiling(this.heartRateBpm, this.heartRateCap),
       seenButtons: this.buttonsSeen,
+      workout: this.workoutProgress(),
       elapsedSeconds: this.elapsedMs / 1000,
       elevation: position?.ele ?? 0,
       climbed: this.climbed,
       routeAscent: this.route?.totalAscent ?? 0,
       lat: position?.lat ?? 0,
       lon: position?.lon ?? 0,
+    }
+  }
+
+  private workoutProgress(): WorkoutProgress | null {
+    const workout = this.workout
+    if (!workout) return null
+
+    const step = stepAt(this.workoutSteps, this.workoutElapsed) ?? null
+    const index = step ? this.workoutSteps.indexOf(step) : this.workoutSteps.length
+    const total = totalSeconds(this.workoutSteps)
+
+    return {
+      name: workout.name,
+      elapsedSeconds: Math.min(this.workoutElapsed, total),
+      totalSeconds: total,
+      step,
+      next: this.workoutSteps[index + 1] ?? null,
+      stepIndex: index,
+      stepCount: this.workoutSteps.length,
+      // A relative step with no FTP set: say so rather than quietly riding a
+      // number nobody chose.
+      blocked: step !== null && wattsAt(step.step, 0, this.ftpW) === null && step.step.from.kind === 'ftp',
+      finished: step === null && this.workoutElapsed > 0,
     }
   }
 
@@ -457,6 +563,30 @@ export class RideEngine {
   private pushGradient(gradientPct: number): void {
     this.trainerGradient = this.targetPowerW === null ? gradientPct : 0
     this.pushResistance()
+  }
+
+  /**
+   * Advances the workout clock and sets the target from wherever it lands.
+   *
+   * Uses the automatic path rather than {@link RideEngine.setTargetPower}: on a
+   * ramp the target moves every tick, and the manual path deliberately drops
+   * any heart-rate hold-back, which would leave the ceiling unable to hold
+   * anything down for more than a quarter second.
+   */
+  private driveWorkout(dtSeconds: number): void {
+    if (this.workoutSteps.length === 0) return
+
+    this.workoutElapsed += dtSeconds
+
+    const current = stepAt(this.workoutSteps, this.workoutElapsed)
+    if (!current) {
+      // Past the end: hand resistance back rather than holding the last step
+      // forever, which is what a workout ending should feel like.
+      this.setChosenPower(null)
+      return
+    }
+
+    this.setChosenPower(wattsAt(current.step, this.workoutElapsed - current.startSeconds, this.ftpW))
   }
 
   /**
@@ -536,4 +666,10 @@ export class RideEngine {
     const snapshot = this.snapshot()
     for (const listener of this.listeners) listener(snapshot)
   }
+}
+
+
+function clampPower(watts: number | null): number | null {
+  if (watts === null) return null
+  return Math.round(Math.min(POWER_LIMITS.max, Math.max(POWER_LIMITS.min, watts)))
 }

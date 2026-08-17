@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_DRIVETRAIN } from '../physics/gears'
 import { climbRoute, FakeShifter, FakeTrainer, flatRoute } from '../../testing/fixtures'
+import type { Workout } from '../workout/model'
 import { POWER_LIMITS, RideEngine, type RideSnapshot } from './engine'
 
 /** Drives the engine forward in fixed steps from a fixed start time. */
@@ -650,5 +651,171 @@ describe('the heart rate ceiling, end to end', () => {
     const { engine, trainer } = holding(145, 137)
     ride(engine, trainer, 132, 5)
     expect(engine.snapshot().heartRateBpm).toBe(132)
+  })
+})
+
+describe('a workout driving the power', () => {
+  const watts = (w: number) => ({ kind: 'watts', watts: w }) as const
+
+  const session: Workout = {
+    name: 'Test session',
+    blocks: [
+      { kind: 'step', step: { seconds: 60, from: watts(100), to: watts(200) } },
+      {
+        kind: 'repeat',
+        times: 3,
+        steps: [
+          { seconds: 30, from: watts(300), to: watts(300) },
+          { seconds: 30, from: watts(150), to: watts(150) },
+        ],
+      },
+    ],
+  }
+
+  function riding(workout: Workout = session) {
+    const engine = new RideEngine({ autoPauseSeconds: 0 })
+    const trainer = new FakeTrainer()
+    engine.attachTrainer(trainer)
+    engine.setFreeRide()
+    engine.setWorkout(workout)
+    engine.start()
+    engine.tick(0)
+    return { engine, trainer }
+  }
+
+  /** Ride at the app's tick rate, keeping the pedals turning. */
+  function ride(engine: RideEngine, trainer: FakeTrainer, seconds: number, from = 0) {
+    for (let t = from + 250; t <= (from + seconds) * 1000; t += 250) {
+      trainer.send({ powerW: 200 })
+      engine.tick(t)
+    }
+  }
+
+  it('holds the step the clock is in', () => {
+    const { engine, trainer } = riding()
+    ride(engine, trainer, 70)
+    // 10 s into the first interval: 300 W.
+    expect(engine.snapshot().targetPowerW).toBe(300)
+    expect(trainer.lastPowerTarget).toBe(300)
+  })
+
+  it('follows a ramp rather than stepping to the end of it', () => {
+    const { engine, trainer } = riding()
+    ride(engine, trainer, 30)
+    const halfway = engine.snapshot().targetPowerW ?? 0
+    // 100 W to 200 W over a minute: halfway is about 150.
+    expect(halfway).toBeGreaterThan(140)
+    expect(halfway).toBeLessThan(160)
+  })
+
+  it('says which pass through the repeat it is on', () => {
+    const { engine, trainer } = riding()
+    ride(engine, trainer, 130)
+    expect(engine.snapshot().workout?.step?.repeat).toEqual({ index: 2, total: 3 })
+  })
+
+  it('does not advance while paused', () => {
+    const { engine, trainer } = riding()
+    ride(engine, trainer, 30)
+    const at = engine.snapshot().workout?.elapsedSeconds ?? 0
+
+    engine.pause()
+    for (let t = 30_250; t <= 60_000; t += 250) engine.tick(t)
+
+    expect(engine.snapshot().workout?.elapsedSeconds).toBeCloseTo(at, 1)
+  })
+
+  it('hands resistance back when the workout ends', () => {
+    const { engine, trainer } = riding()
+    // The session is 60 s of ramp plus 3 × 60 s of intervals.
+    ride(engine, trainer, 250)
+    expect(engine.snapshot().workout?.finished).toBe(true)
+    expect(engine.snapshot().targetPowerW).toBeNull()
+    expect(trainer.lastPowerTarget).toBeNull()
+  })
+
+  it('skips to the next step and back again', () => {
+    const { engine, trainer } = riding()
+    ride(engine, trainer, 10)
+
+    engine.skipStep(1)
+    expect(engine.snapshot().targetPowerW).toBe(300)
+
+    engine.skipStep(-1)
+    // Back at the start of the ramp, not where we were in it.
+    expect(engine.snapshot().targetPowerW).toBe(100)
+  })
+
+  it('cannot be skipped off either end', () => {
+    const { engine } = riding()
+    engine.skipStep(-1)
+    expect(engine.snapshot().workout?.stepIndex).toBe(0)
+    for (let i = 0; i < 20; i++) engine.skipStep(1)
+    expect(engine.snapshot().workout?.stepIndex).toBe(6)
+  })
+
+  it('refuses a relative workout with no FTP rather than guessing a number', () => {
+    const relative: Workout = {
+      name: 'Relative',
+      blocks: [
+        { kind: 'step', step: { seconds: 60, from: { kind: 'ftp', fraction: 0.7 }, to: { kind: 'ftp', fraction: 0.7 } } },
+      ],
+    }
+    const { engine, trainer } = riding(relative)
+    ride(engine, trainer, 10)
+
+    expect(engine.snapshot().workout?.blocked).toBe(true)
+    expect(engine.snapshot().targetPowerW).toBeNull()
+  })
+
+  it('comes alive the moment an FTP is set', () => {
+    const relative: Workout = {
+      name: 'Relative',
+      blocks: [
+        { kind: 'step', step: { seconds: 60, from: { kind: 'ftp', fraction: 0.75 }, to: { kind: 'ftp', fraction: 0.75 } } },
+      ],
+    }
+    const { engine, trainer } = riding(relative)
+    ride(engine, trainer, 10)
+    engine.setFtp(200)
+    ride(engine, trainer, 10, 10)
+
+    expect(engine.snapshot().targetPowerW).toBe(150)
+  })
+
+  it('lets the heart rate ceiling pull a workout step down', () => {
+    // The two features have to compose: the workout says how hard, the heart
+    // says how hard is actually available today.
+    const engine = new RideEngine({
+      autoPauseSeconds: 0,
+      heartRateCap: { ceilingBpm: 137, autoBackOff: true, floorW: 60 },
+    })
+    const trainer = new FakeTrainer()
+    engine.attachTrainer(trainer)
+    engine.setFreeRide()
+    engine.setWorkout({
+      name: 'Steady',
+      blocks: [{ kind: 'step', step: { seconds: 600, from: watts(200), to: watts(200) } }],
+    })
+    engine.start()
+    engine.tick(0)
+
+    for (let t = 250; t <= 60_000; t += 250) {
+      trainer.send({ powerW: 200 })
+      engine.setHeartRate(150)
+      engine.tick(t)
+    }
+
+    expect(engine.snapshot().targetPowerW).toBe(200)
+    expect(engine.snapshot().heldPowerW).toBeLessThan(200)
+  })
+
+  it('forgets the workout when it is removed', () => {
+    const { engine, trainer } = riding()
+    ride(engine, trainer, 70)
+    engine.setWorkout(null)
+
+    expect(engine.snapshot().workout).toBeNull()
+    expect(engine.snapshot().targetPowerW).toBeNull()
   })
 })

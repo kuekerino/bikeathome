@@ -20,6 +20,12 @@ export interface AppSettings {
   /** What each key and each Click button does. */
   bindings: Bindings
   heartRateCap: HeartRateCapSettings
+  /**
+   * Functional threshold power, for workouts written as a percentage of it.
+   * `null` until measured — a guessed FTP makes every relative session wrong
+   * by the same unknown amount.
+   */
+  ftpW: number | null
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -27,6 +33,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   drivetrain: DEFAULT_DRIVETRAIN,
   bindings: DEFAULT_BINDINGS,
   heartRateCap: DEFAULT_HEART_RATE_CAP,
+  ftpW: null,
 }
 
 /** Bounds are generous — they exist to stop nonsense, not to police riders. */
@@ -34,6 +41,7 @@ const LIMITS = {
   massKg: [30, 250],
   bpm: [80, 220],
   floorW: [0, 400],
+  ftpW: [50, 600],
   crr: [0.001, 0.02],
   cda: [0.15, 1.2],
   teeth: [8, 60],
@@ -64,6 +72,10 @@ export function sanitizeSettings(raw: unknown): AppSettings {
       cogTeeth: integer(drivetrain.cogTeeth, DEFAULT_DRIVETRAIN.cogTeeth, LIMITS.teeth),
     },
     heartRateCap: sanitizeHeartRateCap(input.heartRateCap),
+    ftpW:
+      typeof input.ftpW === 'number' && Number.isFinite(input.ftpW) && input.ftpW > 0
+        ? integer(input.ftpW, LIMITS.ftpW[0], LIMITS.ftpW)
+        : null,
     // `shifter.swapButtons` was the old way of saying the same thing, and a
     // rider who had ticked it should not have to find the new control to get
     // their shifting back.

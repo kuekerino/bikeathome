@@ -79,6 +79,29 @@ readout dims to say so. Turn the hold off and the gear decides everything again.
 Speed is unaffected either way: it still comes from the watts the trainer reports and
 the gradient, so a session in watt mode is still a ride and still exports as one.
 
+### Structured workouts
+
+Load a Zwift **`.zwo`** and it drives the target power: warmups, ramps, intervals with
+their repeats intact, cooldowns, cadence targets and free-ride blocks. The panel shows
+the current step, what is left of it, and what comes next — and says "interval 4 of 6"
+rather than "step 8 of 13", because a repeat stays a repeat rather than being flattened
+on import.
+
+**Skip step** and **Back a step** are there because sessions get interrupted. Both are
+actions, so they can be put on a key or a shifter button under **Controls**.
+
+Two things worth knowing:
+
+- **A `.zwo` written in percentages needs an FTP**, set in the same panel. Nothing is
+  guessed — riding 70% of a number nobody chose is worse than not starting.
+- **Absolute watts work too.** A value above 10 is read as watts and below it as a
+  fraction of FTP, which is the usual convention. It matters because **an FTP test
+  cannot be written as a percentage of FTP**, so a test protocol has to be expressible
+  in plain watts.
+
+The workout says how hard; the route still says how far. Speed comes from the watts you
+actually produce against the real gradient, exactly as it does on any other ride.
+
 ### Training to heart rate
 
 Pair a strap and the rate shows on the dashboard and goes into the export. With **Hold a
