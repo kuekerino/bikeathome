@@ -12,6 +12,7 @@ import type { Shifter, Trainer } from './lib/ble/types'
 import { ZwiftClick } from './lib/ble/zwiftClick'
 import { KeyboardControls } from './lib/controls/keyboard'
 import { parseGpx } from './lib/gpx/parser'
+import type { Workout } from './lib/workout/model'
 import { parseZwo } from './lib/workout/zwo'
 import { Route } from './lib/gpx/route'
 import { RideEngine } from './lib/ride/engine'
@@ -218,9 +219,17 @@ export function loadRouteFromText(xml: string): void {
   recorder.reset()
 }
 
-/** Loads a Zwift workout. It drives the power; the route still drives distance. */
-export function loadWorkoutFromText(xml: string): void {
-  engine.setWorkout(parseZwo(xml))
+/**
+ * Reads a Zwift workout without committing to it, so a file that will not parse
+ * cannot half-change the screen on its way to failing.
+ */
+export function parseWorkout(xml: string): Workout {
+  return parseZwo(xml)
+}
+
+/** A workout drives the power; the route, if any, still drives distance. */
+export function setWorkout(workout: Workout): void {
+  engine.setWorkout(workout)
 }
 
 export function clearWorkout(): void {

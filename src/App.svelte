@@ -22,7 +22,8 @@
     exportRide,
     loadDemoRoute,
     loadRouteFromText,
-    loadWorkoutFromText,
+    parseWorkout,
+    setWorkout,
     clearWorkout,
     heartRate,
     pairHeartRate,
@@ -185,6 +186,20 @@
       freeRide = false
     })
 
+  /**
+   * A workout is a way to start a ride, not something added to one. Loading it
+   * with nothing else chosen puts the rider on a flat road — the session
+   * decides the effort, so there is nothing else to pick.
+   */
+  const openWorkout = (xml: string) =>
+    void attempt(() => {
+      // Parse before committing to anything: a file that will not load should
+      // leave the screen exactly as it was.
+      const workout = parseWorkout(xml)
+      if (!chosen) openFreeRide()
+      setWorkout(workout)
+    })
+
   function openFreeRide(): void {
     startFreeRide()
     route = null
@@ -266,6 +281,23 @@
     <RouteLoader onFile={openFile} onDemo={openDemoRoute} onFree={openFreeRide} {busy} />
   {/if}
 
+{#snippet workoutPanel()}
+    <WorkoutPanel
+      progress={ride.workout}
+      ftpW={settings.ftpW}
+      onLoad={openWorkout}
+      onClear={clearWorkout}
+      onSkip={(direction) => engine.skipStep(direction)}
+      onFtp={(ftpW) => updateSettings({ ...settings, ftpW })}
+    />
+  {/snippet}
+
+  <!-- Before a ride it is a third way in, beside the GPX drop and Just pedal.
+       During one it belongs with the other things being ridden against. -->
+  {#if !chosen}
+    {@render workoutPanel()}
+  {/if}
+
   <ConnectPanel {devices} note={browserNote} />
 
   {#if chosen}
@@ -291,14 +323,7 @@
       onExport={() => void attempt(exportRide)}
     />
 
-    <WorkoutPanel
-      progress={ride.workout}
-      ftpW={settings.ftpW}
-      onLoad={(xml) => void attempt(() => loadWorkoutFromText(xml))}
-      onClear={clearWorkout}
-      onSkip={(direction) => engine.skipStep(direction)}
-      onFtp={(ftpW) => updateSettings({ ...settings, ftpW })}
-    />
+    {@render workoutPanel()}
 
     <PowerPanel
       target={ride.targetPowerW}
