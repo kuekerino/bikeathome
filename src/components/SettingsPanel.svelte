@@ -152,7 +152,7 @@
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
     gap: var(--gap);
     padding: 0 0.9rem 0.9rem;
   }
@@ -182,6 +182,7 @@
     justify-content: space-between;
     gap: 0.75rem;
     font-size: 0.88rem;
+    flex-wrap: wrap;
   }
 
   .radio {
@@ -210,10 +211,11 @@
   .pair {
     display: flex;
     gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .pair label {
-    flex: 1;
+    flex: 1 1 8rem;
   }
 
   .field {

@@ -241,6 +241,7 @@
     justify-content: space-between;
     gap: 0.75rem;
     font-size: 0.88rem;
+    flex-wrap: wrap;
     border-top: 1px solid var(--line);
     padding-top: 0.6rem;
   }

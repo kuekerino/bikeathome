@@ -134,7 +134,13 @@ is applied before the first paint, so choosing light does not mean a dark flash 
 load.
 
 Colours were picked against measured contrast rather than by eye — every text pair clears
-4.5:1 and control borders clear 3:1, in all four combinations.
+4.5:1 and control borders clear 3:1, in all four combinations. The layout was checked for
+horizontal scrolling down to 320 pixels wide at 150% text, and connection state is shown
+by shape as well as colour, since green against grey is no indicator at all to a rider who
+cannot separate the two.
+
+If your operating system asks for more contrast, the app honours that without you finding
+the switch, and it redraws its borders in the system palette under Windows High Contrast.
 
 **Announce what changes** reads out new intervals, the heart rate ceiling being crossed,
 and the ride starting or finishing. Deliberately *not* the live numbers: a dashboard

@@ -141,11 +141,42 @@ button:disabled {
 }
 
 
-/* Controls need a boundary that is actually visible, which `--line` is not. */
+/*
+ * Controls need a boundary that is actually visible, which `--line` is not,
+ * and a target big enough to hit. 24px is the WCAG minimum; a default number
+ * input renders at about 21.
+ */
 input,
 select,
 textarea {
   border-color: var(--edge);
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select,
+button,
+summary {
+  min-height: 24px;
+}
+
+/* Checkboxes and radios stay small, but they live inside a <label>, so the
+   thing you actually click is the whole row. Enlarged anyway: at 13px they are
+   hard to see, never mind hit. */
+input[type='checkbox'],
+input[type='radio'] {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* Nothing may force the page sideways: WCAG asks for no horizontal scrolling
+   down to 320 CSS pixels, which is also every phone held upright. */
+img,
+svg,
+table,
+input,
+select,
+button {
+  max-width: 100%;
 }
 
 /*
@@ -197,5 +228,46 @@ textarea {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+
+/*
+ * Some riders ask the operating system for more contrast rather than finding a
+ * setting in every app. Honour that as the default, while leaving the in-app
+ * switch able to turn it back off.
+ */
+@media (prefers-contrast: more) {
+  :root[data-theme='dark']:not([data-contrast='normal']) {
+    --line: #8a8a8a;
+    --edge: #cfcfcf;
+    --text: #ffffff;
+    --muted: #d6d6d6;
+  }
+
+  :root[data-theme='light']:not([data-contrast='normal']) {
+    --line: #4a4a4a;
+    --edge: #1a1a1a;
+    --text: #000000;
+    --muted: #333333;
+  }
+}
+
+/*
+ * Windows High Contrast and similar replace the palette wholesale. Borders
+ * drawn with a custom colour disappear there, so redraw them in the system's
+ * own colours rather than leaving controls outlined in nothing.
+ */
+@media (forced-colors: active) {
+  button,
+  input,
+  select,
+  textarea,
+  .skip-link {
+    border: 1px solid ButtonBorder;
+  }
+
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid Highlight;
   }
 }

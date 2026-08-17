@@ -422,6 +422,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--gap);
+    flex-wrap: wrap;
   }
 
   h1 {

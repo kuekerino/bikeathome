@@ -262,6 +262,7 @@
     justify-content: space-between;
     gap: 0.75rem;
     font-size: 0.88rem;
+    flex-wrap: wrap;
   }
 
   .ceiling .inline {

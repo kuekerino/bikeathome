@@ -28,14 +28,36 @@
     connected: 'Connected',
     error: 'Failed',
   }
+
+  /**
+   * Shape as well as colour. Green against grey at eight pixels is the whole
+   * state indicator otherwise, which is no indicator at all to a rider who
+   * cannot separate the two — and a filled circle against a hollow one is
+   * legible even when both look identical in hue.
+   */
+  const glyph: Record<ConnectionState, string> = {
+    disconnected: '○',
+    connecting: '◐',
+    connected: '●',
+    error: '▲',
+  }
 </script>
 
 <ul>
   {#each devices as device (device.what)}
     <li>
-      <span class="dot {device.state}" aria-hidden="true"></span>
+      <span class="dot {device.state}" aria-hidden="true">{glyph[device.state]}</span>
       <span class="what">{device.what}</span>
-      <span class="label">{device.state === 'connected' ? device.label : wording[device.state]}</span>
+      <span class="label">
+        {#if device.state === 'connected'}
+          <!-- The visible text is the device's name, which does not itself say
+               the thing is connected. Spoken, that has to be explicit. -->
+          <span class="visually-hidden">Connected:</span>
+          {device.label}
+        {:else}
+          {wording[device.state]}
+        {/if}
+      </span>
       {#if device.detail}<span class="detail">{device.detail}</span>{/if}
       {#if device.actions?.length}
         <span class="actions">
@@ -69,6 +91,7 @@
 
   li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.6rem;
     padding: 0.55rem 0.8rem;
@@ -77,23 +100,24 @@
   }
 
   .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--muted);
+    width: 1em;
+    font-size: 0.85rem;
+    line-height: 1;
+    text-align: center;
+    color: var(--muted);
     flex: none;
   }
 
   .dot.connected {
-    background: var(--good);
+    color: var(--good);
   }
 
   .dot.connecting {
-    background: var(--warn);
+    color: var(--warn);
   }
 
   .dot.error {
-    background: var(--bad);
+    color: var(--bad);
   }
 
   .what {

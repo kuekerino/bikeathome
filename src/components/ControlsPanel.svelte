@@ -173,7 +173,7 @@
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
     gap: var(--gap);
     padding: 0 0.9rem 0.9rem;
   }
@@ -203,12 +203,14 @@
     justify-content: space-between;
     gap: 0.75rem;
     font-size: 0.88rem;
+    flex-wrap: wrap;
   }
 
   .row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .row select {
