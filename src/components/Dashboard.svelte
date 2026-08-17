@@ -57,7 +57,7 @@
     <Stat
       value={ride.heartRateBpm}
       label={ride.overCeiling ? 'bpm — over the ceiling' : 'bpm'}
-      colour={ride.overCeiling ? 'var(--danger, #e5534b)' : undefined}
+      colour={ride.overCeiling ? 'var(--bad)' : undefined}
     />
   {/if}
   {#if free}

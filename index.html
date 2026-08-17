@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
       content="Ride your own GPX routes on a smart trainer, with virtual shifting."
@@ -16,6 +16,27 @@
     <title>bikeathome</title>
   </head>
   <body>
+    <!--
+      Applies the stored theme before the first paint. Without it a rider who
+      chose light is shown a dark screen for a frame every time they open the
+      page, which is exactly the flash the setting exists to avoid.
+    -->
+    <script>
+      try {
+        var stored = JSON.parse(localStorage.getItem('bikeathome.settings.v1') || '{}')
+        var look = stored.appearance || {}
+        var dark =
+          look.theme === 'dark' ||
+          (look.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        var root = document.documentElement
+        root.dataset.theme = dark ? 'dark' : 'light'
+        root.dataset.contrast = look.highContrast ? 'high' : 'normal'
+        root.style.setProperty('--text-scale', String(look.textScale || 1))
+      } catch (e) {
+        // Storage blocked, or something that is not JSON. The stylesheet's own
+        // defaults are a complete theme, so there is nothing to recover.
+      }
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

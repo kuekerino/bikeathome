@@ -128,7 +128,7 @@
 
   .picker {
     background: var(--accent);
-    color: #1a1300;
+    color: var(--on-accent);
     font-weight: 600;
     border-radius: var(--radius);
     padding: 8px 14px;

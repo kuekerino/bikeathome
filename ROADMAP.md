@@ -27,6 +27,10 @@ for heart rate. It does now, along with a fix the free ride mode had quietly int
 a ride with no route was writing `0,0` positions, which plots an hour of pedalling off
 the coast of Africa.
 
+**Light and dark themes, high contrast, larger text and spoken announcements.** The
+contrast work turned up a real defect on the way: control borders were at 1.48:1 where
+WCAG asks for 3:1, so buttons and inputs had no visible boundary in either theme.
+
 ## The FTP circularity
 
 Worth stating plainly because it dictates the order of everything below: **an FTP test

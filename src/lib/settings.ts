@@ -7,6 +7,11 @@
  * into NaN with no obvious cause.
  */
 
+import {
+  DEFAULT_APPEARANCE,
+  sanitizeAppearance,
+  type AppearanceSettings,
+} from './appearance'
 import { DEFAULT_BINDINGS, sanitizeBindings, type Bindings } from './controls/bindings'
 import { DEFAULT_RIDER, type RiderSettings } from './physics/constants'
 import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from './physics/gears'
@@ -26,6 +31,7 @@ export interface AppSettings {
    * by the same unknown amount.
    */
   ftpW: number | null
+  appearance: AppearanceSettings
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -34,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   bindings: DEFAULT_BINDINGS,
   heartRateCap: DEFAULT_HEART_RATE_CAP,
   ftpW: null,
+  appearance: DEFAULT_APPEARANCE,
 }
 
 /** Bounds are generous — they exist to stop nonsense, not to police riders. */
@@ -72,6 +79,7 @@ export function sanitizeSettings(raw: unknown): AppSettings {
       cogTeeth: integer(drivetrain.cogTeeth, DEFAULT_DRIVETRAIN.cogTeeth, LIMITS.teeth),
     },
     heartRateCap: sanitizeHeartRateCap(input.heartRateCap),
+    appearance: sanitizeAppearance(input.appearance),
     ftpW:
       typeof input.ftpW === 'number' && Number.isFinite(input.ftpW) && input.ftpW > 0
         ? integer(input.ftpW, LIMITS.ftpW[0], LIMITS.ftpW)

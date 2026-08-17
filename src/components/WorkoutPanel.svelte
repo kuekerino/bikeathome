@@ -59,7 +59,17 @@
       <button class="ghost" onclick={onClear}>Remove</button>
     </header>
 
-    <div class="bar" aria-hidden="true">
+    <div
+      class="bar"
+      role="progressbar"
+      aria-label="Workout progress"
+      aria-valuemin={0}
+      aria-valuemax={Math.round(progress.totalSeconds)}
+      aria-valuenow={Math.round(progress.elapsedSeconds)}
+      aria-valuetext="{formatDuration(progress.elapsedSeconds)} of {formatDuration(
+        progress.totalSeconds,
+      )}"
+    >
       <span
         style:width={`${progress.totalSeconds > 0 ? (100 * progress.elapsedSeconds) / progress.totalSeconds : 0}%`}
       ></span>
@@ -215,7 +225,7 @@
     margin: 0;
     font-size: 0.8rem;
     line-height: 1.45;
-    color: var(--danger, #e5534b);
+    color: var(--bad);
   }
 
   .hint {

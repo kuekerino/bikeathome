@@ -126,6 +126,22 @@ guessed. A button matching a documented Zwift layout arrives already shifting; a
 else does nothing until you bind it, because guessing wrong means shifting the wrong
 way at the wrong moment.
 
+### Appearance and accessibility
+
+Under **Appearance and accessibility**: **light, dark or follow the system**, a **high
+contrast** switch that applies on top of either, and **text size** up to 150%. The theme
+is applied before the first paint, so choosing light does not mean a dark flash on every
+load.
+
+Colours were picked against measured contrast rather than by eye — every text pair clears
+4.5:1 and control borders clear 3:1, in all four combinations.
+
+**Announce what changes** reads out new intervals, the heart rate ceiling being crossed,
+and the ride starting or finishing. Deliberately *not* the live numbers: a dashboard
+where the power changes four times a second is unusable read aloud. For those, bind
+**Read the numbers aloud** to a key or a shifter button under **Controls** and hear them
+when you ask.
+
 ### Pairing once instead of every time
 
 Enable `chrome://flags/#enable-web-bluetooth-new-permissions-backend` and devices you

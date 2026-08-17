@@ -76,7 +76,7 @@
 
   .primary {
     background: var(--accent);
-    color: #1a1300;
+    color: var(--on-accent);
     border-color: transparent;
     font-weight: 600;
   }

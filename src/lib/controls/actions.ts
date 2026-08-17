@@ -19,6 +19,7 @@ export const RIDE_ACTIONS = [
   'togglePause',
   'nextStep',
   'previousStep',
+  'speakStatus',
   'nothing',
 ] as const
 
@@ -37,6 +38,7 @@ export const ACTION_LABELS: Record<RideAction, string> = {
   togglePause: 'Pause or resume',
   nextStep: 'Skip to next step',
   previousStep: 'Back a step',
+  speakStatus: 'Read the numbers aloud',
   nothing: 'Nothing',
 }
 

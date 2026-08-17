@@ -9,13 +9,19 @@
   }
 
   let { value, label, unit, colour, size = 'normal' }: Props = $props()
+
+  /**
+   * Read as one phrase. Left to itself a screen reader announces the number and
+   * the label as two unrelated fragments, and "183" on its own means nothing.
+   */
+  const spoken = $derived(`${label}: ${value}${unit ? ` ${unit}` : ''}`)
 </script>
 
-<div class="stat" class:large={size === 'large'}>
-  <span class="value num" style:color={colour}>
+<div class="stat" class:large={size === 'large'} role="group" aria-label={spoken}>
+  <span class="value num" style:color={colour} aria-hidden="true">
     {value}{#if unit}<small>{unit}</small>{/if}
   </span>
-  <span class="label">{label}</span>
+  <span class="label" aria-hidden="true">{label}</span>
 </div>
 
 <style>

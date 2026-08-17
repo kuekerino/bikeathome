@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import type { ConnectionState } from './lib/ble/types'
+  import type { RideSnapshot } from './lib/ride/engine'
+  import Announcer from './components/Announcer.svelte'
+  import AppearancePanel from './components/AppearancePanel.svelte'
   import ConnectPanel, { type DeviceRow } from './components/ConnectPanel.svelte'
   import ControlsPanel from './components/ControlsPanel.svelte'
   import Dashboard from './components/Dashboard.svelte'
@@ -11,6 +14,8 @@
   import RouteMap from './components/RouteMap.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
   import WorkoutPanel from './components/WorkoutPanel.svelte'
+  import { announcementFor, describeStatus } from './lib/a11y/announce'
+  import { applyAppearance, systemPrefersDark } from './lib/appearance'
   import { bluetoothNote, currentPlatform } from './lib/browserSupport'
   import type { Route } from './lib/gpx/route'
   import { loadSettings, type AppSettings } from './lib/settings'
@@ -56,6 +61,15 @@
   let trainerNotFound = $state(false)
   let clickNotFound = $state(false)
 
+  let announcement = $state('')
+  let announcementSeq = $state(0)
+  let previousSnapshot: RideSnapshot | null = null
+
+  function say(text: string): void {
+    announcement = text
+    announcementSeq += 1
+  }
+
   const bluetooth = bluetoothAvailable()
 
   onMount(() => {
@@ -66,6 +80,15 @@
       if (state === 'error' && detail) error = detail
     }
     zwiftClick.onbattery = (percent) => (clickBattery = percent)
+
+    // Asked for rather than volunteered: the live numbers are exactly what
+    // must not be read out continuously.
+    engine.onspeak = () => say(describeStatus(engine.snapshot()))
+
+    // The system theme can change under a ride — sunset, or a scheduled switch.
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onScheme = () => applyAppearance(settings.appearance, media.matches)
+    media.addEventListener('change', onScheme)
 
     heartRate.onstate = (state, detail) => {
       strapState = state
@@ -89,7 +112,10 @@
       }
     })
 
-    return stop
+    return () => {
+      media.removeEventListener('change', onScheme)
+      stop()
+    }
   })
 
   const ride = $derived($engine)
@@ -100,6 +126,20 @@
   const onRoute = $derived(route !== null)
 
   $effect(() => keepScreenAwake(ride.status === 'riding'))
+
+  // The look is applied to the document rather than scoped to a component, so
+  // the same values reach the page background and the browser's own widgets.
+  $effect(() => applyAppearance(settings.appearance, systemPrefersDark()))
+
+  $effect(() => {
+    const snapshot = ride
+    const previous = previousSnapshot
+    previousSnapshot = snapshot
+    if (!settings.appearance.announce) return
+
+    const said = announcementFor(previous, snapshot, settings.ftpW)
+    if (said) say(said)
+  })
 
   const devices = $derived<DeviceRow[]>([
     {
@@ -254,6 +294,10 @@
   }
 </script>
 
+<a class="skip-link" href="#ride">Skip to the ride</a>
+
+<Announcer message={announcement} sequence={announcementSeq} />
+
 <main>
   <header>
     <div>
@@ -301,10 +345,12 @@
   <ConnectPanel {devices} note={browserNote} />
 
   {#if chosen}
-    <Dashboard {ride} {virtualShifting} />
+    <section id="ride" aria-label="Ride">
+      <Dashboard {ride} {virtualShifting} />
+    </section>
 
     {#if route}
-      <div class="visuals">
+      <div class="visuals" aria-hidden="true">
         <ElevationProfile {route} distance={ride.distance} />
         <RouteMap {route} lat={ride.lat} lon={ride.lon} />
       </div>
@@ -340,6 +386,11 @@
   {/if}
 
   <SettingsPanel {settings} onChange={updateSettings} />
+
+  <AppearancePanel
+    appearance={settings.appearance}
+    onChange={(appearance) => updateSettings({ ...settings, appearance })}
+  />
 
   <ControlsPanel
     bindings={settings.bindings}

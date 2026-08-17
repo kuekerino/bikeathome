@@ -1,23 +1,98 @@
+/*
+ * Two tokens for lines, not one. `--line` separates things and may be quiet;
+ * `--edge` outlines things you can operate — buttons, inputs, selects — and
+ * has to reach 3:1 against what is behind it, or the control has no visible
+ * boundary at all. Measured, not guessed.
+ *
+ * The theme is stamped on the root by script rather than chosen by a media
+ * query, so "follow the system" and "always light" can both exist.
+ */
 :root {
+  --radius: 10px;
+  --gap: 12px;
+  --text-scale: 1;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+/* Dark, and the fallback before any script has run. */
+:root,
+:root[data-theme='dark'] {
   --bg: #0e1116;
   --panel: #161b22;
   --panel-2: #1c232c;
   --line: #2a333f;
+  --edge: #637184;
   --text: #e6edf3;
   --muted: #8b97a6;
   --accent: #ffb02e;
+  --on-accent: #0e1116;
   --accent-2: #4ea1ff;
   --good: #3fb950;
   --warn: #d29922;
   --bad: #f85149;
 
-  --radius: 10px;
-  --gap: 12px;
-
   color-scheme: dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --panel: #f6f8fa;
+  --panel-2: #eef1f4;
+  --line: #d0d7de;
+  --edge: #7d8590;
+  --text: #1f2328;
+  --muted: #59636e;
+  /* Darkened from the dark theme's amber, which is unreadable on white. */
+  --accent: #9a5b00;
+  --on-accent: #ffffff;
+  --accent-2: #0a58ca;
+  --good: #1a7f37;
+  --warn: #8c6300;
+  --bad: #cf222e;
+
+  color-scheme: light;
+}
+
+/* High contrast is a separate axis: needing more of it says nothing about
+   preferring light or dark, so it applies on top of either. */
+:root[data-theme='dark'][data-contrast='high'] {
+  --bg: #000000;
+  --panel: #0b0b0b;
+  --panel-2: #141414;
+  --line: #8a8a8a;
+  --edge: #cfcfcf;
+  --text: #ffffff;
+  --muted: #d6d6d6;
+  --accent: #ffd60a;
+  --on-accent: #000000;
+  --accent-2: #7cc7ff;
+  --good: #5ee27a;
+  --warn: #ffd60a;
+  --bad: #ff7b72;
+}
+
+:root[data-theme='light'][data-contrast='high'] {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f0f0f0;
+  --line: #4a4a4a;
+  --edge: #1a1a1a;
+  --text: #000000;
+  --muted: #333333;
+  --accent: #7a3d00;
+  --on-accent: #ffffff;
+  --accent-2: #0a3f7a;
+  --good: #0b5f22;
+  --warn: #6b4a00;
+  --bad: #a40e26;
+}
+
+html {
+  /* Scales every rem in the app at once. */
+  font-size: calc(100% * var(--text-scale));
 }
 
 * {
@@ -50,7 +125,7 @@ button {
   font: inherit;
   color: inherit;
   background: var(--panel-2);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
   padding: 8px 14px;
   cursor: pointer;
@@ -63,4 +138,64 @@ button:hover:not(:disabled) {
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+
+/* Controls need a boundary that is actually visible, which `--line` is not. */
+input,
+select,
+textarea {
+  border-color: var(--edge);
+}
+
+/*
+ * A focus ring that survives high contrast. `:focus-visible` rather than
+ * `:focus` so a mouse click does not ring every button, but a keyboard rider
+ * can always see where they are.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Reachable by keyboard, invisible until it matters. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+}
+
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+}
+
+/* Only ever read aloud. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

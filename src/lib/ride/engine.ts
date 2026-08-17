@@ -130,6 +130,8 @@ export class RideEngine {
 
   /** Reports a failed write to the trainer; the device reports link state itself. */
   onerror: ((error: unknown) => void) | null = null
+  /** The rider asked to hear where things stand. */
+  onspeak: (() => void) | null = null
 
   private route: Route | null = null
   private mode: RideMode = 'route'
@@ -349,6 +351,9 @@ export class RideEngine {
         return
       case 'previousStep':
         this.skipStep(-1)
+        return
+      case 'speakStatus':
+        this.onspeak?.()
         return
       case 'nothing':
         return

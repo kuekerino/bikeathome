@@ -253,7 +253,7 @@
   }
 
   .ceiling.over strong {
-    color: var(--danger, #e5534b);
+    color: var(--bad);
   }
 
   .ceiling label {
