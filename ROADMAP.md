@@ -49,10 +49,63 @@ Two consequences:
   worth honouring, but only at *import*, where it belongs. Baking a magic threshold into
   the internal model would spread it everywhere.
 
-A **built-in ramp test** breaks the circularity: a fixed watt ramp, and 75% of the best
-minute as the result. It also happens to be the smallest useful workout, so it is a good
-first thing to build once steps and ramps exist. It should write the FTP it measures
-straight into settings, so every relative workout comes alive at the end of it.
+A **built-in ramp test** breaks the circularity, and now that steps and ramps exist it is
+the next thing worth building. Its own section is below.
+
+## The ramp test
+
+The smallest workout that is worth having, and the one that makes every relative workout
+usable. Everything it needs already exists — absolute watts, ramps, ERG, a ride history —
+so what is left is the protocol and the arithmetic.
+
+### The protocol
+
+Warm up, then one-minute steps rising by a fixed increment until the rider cannot hold
+the target any longer. Written in **absolute watts**, necessarily: the whole point is
+that it cannot be expressed as a share of the number it measures.
+
+Sensible defaults, both adjustable: start at **100 W**, rise **20 W each minute**. A
+rider who already has an FTP and wants a retest is better served starting nearer their
+level — around 40% of it — so the test does not spend twenty minutes being easy.
+
+### The result
+
+**75% of the best one-minute average power.** The samples are already recorded at 1 Hz,
+so this is a rolling 60-second mean over the power series and the maximum of it — a pure
+function over `RideSample[]`, testable without a trainer, and worth writing that way
+because a wrong FTP quietly poisons every session that follows.
+
+Two details that decide whether the number is right:
+
+- **The window must be a real 60 seconds**, not 60 samples. The recorder throttles to
+  roughly 1 Hz but does not promise it, and a dropout would otherwise shorten the window
+  and inflate the result.
+- **Partial final minutes count.** A rider who fails 40 seconds into a step still did
+  those 40 seconds, and the best full minute usually straddles the step boundary anyway.
+
+### Ending it
+
+The rider presses a button. Auto-detection — cadence collapsing for several seconds — is
+tempting and would be kinder at the moment of failure, when nobody wants to find a
+control, but it needs a threshold that does not fire on a brief soft-pedal. Manual first,
+automatic later if it proves annoying.
+
+Worth naming a known objection: a ramp test in ERG can end in the "spiral of death",
+where cadence drops, the trainer holds the watts, and the effort collapses in seconds
+rather than degrading gracefully. That is how most platforms run it, so it is defensible,
+but a fixed-resistance variant would give a cleaner failure and is the fallback if it
+feels wrong on real legs.
+
+### What it writes
+
+The measured FTP goes to the rider for confirmation, not straight into settings — a test
+abandoned early, or one where the strap died, should not silently redefine every future
+workout. Once accepted it lands in `ftpW`, and every `.zwo` written in percentages comes
+alive at once.
+
+The test is a ride like any other, so it saves to the history by itself. Storing the
+result **with** that ride is what turns a single number into a progression: three ramp
+tests over a winter is the most useful thing this app could show.
 
 ## Structured intervals — mostly done
 
@@ -168,16 +221,34 @@ already exists for exactly that reason and would do half the job.
 A format marker and a version number in the file, so a future version can refuse a
 newer one cleanly rather than misreading it.
 
-## How the ride felt
+## How the ride felt — RPE and a note
 
-A ride that looks unremarkable in the data can have been terrible, and the file does not
-say so. Garmin will not carry a rating added after the fact into its export either, so
-the observation is lost exactly when it would be most useful — reading the week back.
+A ride that looks unremarkable in the data can have been terrible, and nothing in the
+file says so. Garmin will not carry a rating added afterwards into its export either, so
+the observation is lost exactly when it would be most useful: reading the week back.
 
-Two fields on finishing, free text and an RPE from 1 to 10, written into the TCX
-`<Notes>`. Small, self-contained, and it makes the file tell the whole story instead of
-half of it. There is a question worth settling first: `<Notes>` is already used for the
-route name, so the two need a format rather than one overwriting the other.
+Two fields when a ride ends — free text, and an **RPE from 1 to 10**. Deliberately asked
+*at the end*, while the legs still remember; a rating added three days later is a guess.
+
+**Where it belongs has changed since this was first written.** The ride history now
+exists, so RPE is not only a TCX field: it belongs on the stored ride, where it can be
+edited later, shown in the list, and carried into every future export of that ride rather
+than only the one taken on the day. That also makes it answerable — "every session above
+RPE 8 last month" is a question the history can answer and a file cannot.
+
+Two things to settle before building it:
+
+- **`<Notes>` already carries the route name.** The two need an agreed layout rather than
+  one overwriting the other — most likely the name, then the note, then `RPE n/10` on its
+  own line, so a human reads it naturally and a parser can still find the number.
+- **Never block the end of a ride.** The prompt has to be skippable in one press. A rider
+  who has just finished hard intervals is in no state to fill in a form, and a dialog
+  standing between them and getting off the bike is a dialog that gets dismissed
+  unanswered forever.
+
+The pairing with the heart rate ceiling is where this earns its place. A session that
+sat comfortably under the ceiling but felt like 9/10 is the clearest signal available
+that something else is wrong — sleep, heat, illness — and neither number says it alone.
 
 ## Customisable gear ratios
 
