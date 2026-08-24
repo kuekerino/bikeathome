@@ -12,6 +12,8 @@ import type { Shifter, Trainer } from './lib/ble/types'
 import { ZwiftClick } from './lib/ble/zwiftClick'
 import { KeyboardControls } from './lib/controls/keyboard'
 import { parseGpx } from './lib/gpx/parser'
+import { historyAvailable, loadTrack, saveRide } from './lib/history/store'
+import { summarise } from './lib/history/summary'
 import type { Workout } from './lib/workout/model'
 import { parseZwo } from './lib/workout/zwo'
 import { Route } from './lib/gpx/route'
@@ -23,6 +25,15 @@ import { loadSettings, saveSettings, type AppSettings } from './lib/settings'
 /** Four times a second: fast enough to feel immediate, cheap enough to ignore. */
 const TICK_MS = 250
 
+/**
+ * How often a ride in progress is written to the history.
+ *
+ * The point is not tidiness: without it, closing the tab or a browser crash
+ * forty minutes in loses the whole ride, and the rider finds out afterwards.
+ * Each save replaces the last, keyed on when the ride began.
+ */
+const AUTOSAVE_MS = 30_000
+
 export const engine = new RideEngine()
 export const recorder = new RideRecorder()
 
@@ -33,6 +44,8 @@ export const heartRate = new HeartRateMonitor()
 
 let simulated: SimulatedTrainer | null = null
 let ftms: FtmsTrainer | null = null
+let loadedWorkout: Workout | null = null
+let lastSavedAt = 0
 
 export function startSession(): () => void {
   applySettings(loadSettings())
@@ -45,17 +58,55 @@ export function startSession(): () => void {
     // the rider jump. The recorder wants wall clock, because its timestamps
     // end up in a file other software has to read.
     engine.tick(performance.now())
-    recorder.record(engine.snapshot(), Date.now())
+    const snapshot = engine.snapshot()
+    recorder.record(snapshot, Date.now())
+
+    const now = Date.now()
+    if (snapshot.status === 'riding' && now - lastSavedAt >= AUTOSAVE_MS) {
+      lastSavedAt = now
+      void rememberRide()
+    }
   }, TICK_MS)
+
+  // Closing the tab is the commonest way a ride ends, and it gives no warning.
+  const onLeaving = () => void rememberRide()
+  window.addEventListener('pagehide', onLeaving)
 
   return () => {
     clearInterval(timer)
+    window.removeEventListener('pagehide', onLeaving)
     void keyboard.disconnect()
+  }
+}
+
+/**
+ * Writes whatever has been recorded so far to the history.
+ *
+ * Failure is swallowed on purpose: a full disk or a private window must not
+ * interrupt a ride, and the rider can still export by hand.
+ */
+export async function rememberRide(): Promise<void> {
+  if (!historyAvailable() || recorder.isEmpty) return
+
+  const snapshot = engine.snapshot()
+  const summary = summarise(recorder.samples, {
+    routeName: snapshot.routeName,
+    workout: loadedWorkout,
+    mode: snapshot.mode,
+    climbedM: snapshot.climbed,
+  })
+  if (!summary) return
+
+  try {
+    await saveRide(summary, recorder.samples, loadedWorkout)
+  } catch {
+    // Out of quota, or storage blocked entirely. Not worth a ride.
   }
 }
 
 export function startRide(): void {
   recorder.reset()
+  lastSavedAt = Date.now()
   engine.start()
 }
 
@@ -64,12 +115,17 @@ export function exportRide(): void {
   const startedAt = recorder.startedAt
   if (startedAt === null) throw new Error('Nothing recorded yet — ride first, then export.')
 
-  const xml = buildTcx(recorder.samples, { name: engine.snapshot().routeName ?? undefined })
-  const url = URL.createObjectURL(new Blob([xml], { type: 'application/vnd.garmin.tcx+xml' }))
+  download(
+    buildTcx(recorder.samples, { name: engine.snapshot().routeName ?? undefined }),
+    tcxFilename(startedAt),
+  )
+}
 
+function download(xml: string, filename: string): void {
+  const url = URL.createObjectURL(new Blob([xml], { type: 'application/vnd.garmin.tcx+xml' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = tcxFilename(startedAt)
+  link.download = filename
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -229,10 +285,29 @@ export function parseWorkout(xml: string): Workout {
 
 /** A workout drives the power; the route, if any, still drives distance. */
 export function setWorkout(workout: Workout): void {
+  loadedWorkout = workout
   engine.setWorkout(workout)
 }
 
+/** Loads the workout a past ride followed, so it can be ridden again. */
+export async function repeatRide(id: number): Promise<Workout | null> {
+  const track = await loadTrack(id)
+  if (!track?.workout) return null
+  setWorkout(track.workout)
+  return track.workout
+}
+
+/** Rebuilds the TCX for a ride that finished long ago. */
+export async function exportSavedRide(id: number, name: string): Promise<void> {
+  const track = await loadTrack(id)
+  if (!track || track.samples.length === 0) {
+    throw new Error('That ride has no recorded track to export.')
+  }
+  download(buildTcx(track.samples, { name }), tcxFilename(track.samples[0]!.time))
+}
+
 export function clearWorkout(): void {
+  loadedWorkout = null
   engine.setWorkout(null)
 }
 

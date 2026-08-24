@@ -148,6 +148,20 @@ where the power changes four times a second is unusable read aloud. For those, b
 **Read the numbers aloud** to a key or a shifter button under **Controls** and hear them
 when you ask.
 
+### Past rides
+
+Rides are saved as you go — every thirty seconds and again when you close the tab — so a
+browser crash or a shut laptop costs you nothing. **Past rides** lists them newest first
+with time, distance, average power and average heart rate. Each one can be exported to
+TCX long after the fact, deleted, or, if it followed a workout, ridden again.
+
+Stored in the browser with IndexedDB, not cookies: a cookie holds about 4 KB and is sent
+to the server on every request, and a forty-minute ride is several hundred kilobytes.
+Local storage would fill after a handful of rides and take the settings with it. The app
+also asks the browser to keep the data rather than treat it as disposable cache.
+
+It is still per-browser and still never uploaded. Export anything you would mind losing.
+
 ### Pairing once instead of every time
 
 Enable `chrome://flags/#enable-web-bluetooth-new-permissions-backend` and devices you

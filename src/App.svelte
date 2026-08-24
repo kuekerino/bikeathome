@@ -6,6 +6,7 @@
   import AppearancePanel from './components/AppearancePanel.svelte'
   import ConnectPanel, { type DeviceRow } from './components/ConnectPanel.svelte'
   import ControlsPanel from './components/ControlsPanel.svelte'
+  import HistoryPanel from './components/HistoryPanel.svelte'
   import Dashboard from './components/Dashboard.svelte'
   import ElevationProfile from './components/ElevationProfile.svelte'
   import PowerPanel from './components/PowerPanel.svelte'
@@ -16,6 +17,8 @@
   import WorkoutPanel from './components/WorkoutPanel.svelte'
   import { announcementFor, describeStatus } from './lib/a11y/announce'
   import { applyAppearance, systemPrefersDark } from './lib/appearance'
+  import { clearRides, deleteRide, listRides, storageEstimate } from './lib/history/store'
+  import type { RideSummary } from './lib/history/summary'
   import { bluetoothNote, currentPlatform } from './lib/browserSupport'
   import type { Route } from './lib/gpx/route'
   import { loadSettings, type AppSettings } from './lib/settings'
@@ -30,6 +33,9 @@
     parseWorkout,
     setWorkout,
     clearWorkout,
+    exportSavedRide,
+    rememberRide,
+    repeatRide,
     heartRate,
     pairHeartRate,
     pairShifter,
@@ -60,6 +66,16 @@
   /** Set once a pairing attempt came back empty, to reveal the wider search. */
   let trainerNotFound = $state(false)
   let clickNotFound = $state(false)
+
+  let history = $state<RideSummary[]>([])
+  let storage = $state<{ usedMb: number; quotaMb: number } | null>(null)
+
+  async function refreshHistory(): Promise<void> {
+    await attempt(async () => {
+      history = await listRides()
+      storage = await storageEstimate()
+    })
+  }
 
   let announcement = $state('')
   let announcementSeq = $state(0)
@@ -364,7 +380,10 @@
       onStart={startRide}
       onPause={() => engine.pause()}
       onResume={() => engine.resume()}
-      onEnd={() => engine.end()}
+      onEnd={() => {
+        engine.end()
+        void rememberRide().then(refreshHistory)
+      }}
       onShift={(direction) => engine.shift(direction)}
       onExport={() => void attempt(exportRide)}
     />
@@ -384,6 +403,30 @@
       onCapChange={(heartRateCap) => updateSettings({ ...settings, heartRateCap })}
     />
   {/if}
+
+  <HistoryPanel
+    rides={history}
+    {storage}
+    {busy}
+    onRefresh={() => void refreshHistory()}
+    onExport={(ride) => void attempt(() => exportSavedRide(ride.id, ride.name))}
+    onRepeat={(ride) =>
+      void attempt(async () => {
+        const workout = await repeatRide(ride.id)
+        if (!workout) throw new Error('That ride did not follow a workout.')
+        if (!chosen) openFreeRide()
+      })}
+    onDelete={(ride) =>
+      void attempt(async () => {
+        await deleteRide(ride.id)
+        await refreshHistory()
+      })}
+    onClear={() =>
+      void attempt(async () => {
+        await clearRides()
+        await refreshHistory()
+      })}
+  />
 
   <SettingsPanel {settings} onChange={updateSettings} />
 

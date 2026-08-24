@@ -31,6 +31,9 @@ the coast of Africa.
 contrast work turned up a real defect on the way: control borders were at 1.48:1 where
 WCAG asks for 3:1, so buttons and inputs had no visible boundary in either theme.
 
+**A ride history**, saved automatically to IndexedDB and re-exportable long afterwards.
+Before it, closing the tab without exporting lost the ride outright.
+
 ## The FTP circularity
 
 Worth stating plainly because it dictates the order of everything below: **an FTP test
