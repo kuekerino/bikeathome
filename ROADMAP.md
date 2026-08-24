@@ -260,6 +260,59 @@ The change is small — the ratio table is already data — but it needs care ov
 happens to the current gear when the block changes underneath a moving rider. Holding
 the *ratio* rather than the *index* across a change is almost certainly right.
 
+## Beating on the beat — RR intervals
+
+The heart emoji currently thumps at the *average* rate: bpm goes in, a beat period comes
+out, and CSS loops it. Convincing, and wrong in the way a metronome is wrong next to a
+drummer — a real heart at 132 bpm does not space its beats evenly.
+
+The strap already sends the truth. Heart Rate Measurement (0x2A37) optionally carries
+**RR intervals** — the measured gap between consecutive beats, in 1/1024 of a second —
+when **bit 4 of the flags byte** is set. `parseHeartRate` reads that flags byte today and
+deliberately steps over the field: "Energy expended and RR intervals trail the rate; they
+must not disturb it." Reading them is a few lines, and the offset is computable from the
+flags already parsed (bit 0 decides whether the rate took one byte or two, bit 3 whether
+eight more bytes of energy expended sit in between).
+
+What makes it more than a few lines is the animation. Three things change:
+
+- **Not every strap sends them.** The feature has to degrade to the current averaged beat
+  when the flag is clear, which means two code paths and a reason to keep the simple one.
+- **They arrive batched.** A notification lands roughly once a second and may carry two or
+  three intervals covering the second that just *passed*. So the beats are historical: to
+  animate on them you either run a second behind, or use the last interval to predict the
+  next one — which is back to estimating, just with a better estimate.
+- **A looping CSS animation cannot express it.** Each beat needs its own trigger, so it
+  becomes a timer per beat and a restarted animation rather than a `--beat` duration.
+  `prefers-reduced-motion` still has to switch the whole thing off.
+
+Worth it for one reason beyond charm: the same intervals are what **HRV** is computed
+from, and an easy ride's HRV is a genuinely useful number. If the parsing goes in, the
+data is there for that later.
+
+## Porting to a phone
+
+Asked and measured rather than guessed. Of roughly 11,900 lines, about 1,600 mention
+Bluetooth at all, and the part that actually talks to a radio is around **930 lines
+across five files** in `src/lib/ble`. Everything else — the physics, the route, the
+workouts, the engine, the recorder, the UI — is transport-agnostic already.
+
+That shapes the answer:
+
+- **Android Chrome supports Web Bluetooth today.** The app very likely runs on an Android
+  phone as it stands, with no port at all. Untested, and the layout would need checking
+  at phone widths, but there is nothing to build.
+- **iOS is the port.** Safari does not implement Web Bluetooth and will not. The route is
+  **Capacitor** wrapping the existing build plus `@capacitor-community/bluetooth-le`,
+  which exposes a similar enough API that the work is an adapter behind the interface in
+  `src/lib/ble/types.ts` rather than a rewrite. Add an Apple developer account, a build
+  step, and app review to the cost.
+
+The honest question is whether a phone is the right screen for this at all. It is a
+handlebar-mounted dashboard with no route map and no second device to run the trainer —
+plausible, but a different product from the one on a laptop, and worth wanting before
+building.
+
 ## Smaller things
 
 - **Offline.** A service worker would make this a PWA and remove the dependency on the
