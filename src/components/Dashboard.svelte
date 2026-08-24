@@ -8,6 +8,7 @@
   } from '../lib/format'
   import type { RideSnapshot } from '../lib/ride/engine'
   import GearIndicator from './GearIndicator.svelte'
+  import HeartBeat from './HeartBeat.svelte'
   import Stat from './Stat.svelte'
 
   interface Props {
@@ -54,10 +55,14 @@
   <Stat value={formatSpeed(ride.speedMs)} label="km/h" />
   <Stat value={Math.round(ride.cadenceRpm)} label="rpm" />
   {#if ride.heartRateBpm !== null}
+    {#snippet heart()}
+      <HeartBeat bpm={ride.heartRateBpm ?? 60} />
+    {/snippet}
     <Stat
       value={ride.heartRateBpm}
       label={ride.overCeiling ? 'bpm — over the ceiling' : 'bpm'}
       colour={ride.overCeiling ? 'var(--bad)' : undefined}
+      icon={heart}
     />
   {/if}
   {#if free}

@@ -103,7 +103,8 @@ actually produce against the real gradient, exactly as it does on any other ride
 
 ### Training to heart rate
 
-Pair a strap and the rate shows on the dashboard and goes into the export. With **Hold a
+Pair a strap and the rate shows on the dashboard — with a heart that beats in time with
+it — and goes into the export. With **Hold a
 set power** on you can also set a **ceiling**: hold 145 W but never above 137 bpm, and
 the target eases off by itself when your heart disagrees — then comes back once you are
 clear of it.

@@ -1,5 +1,9 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte'
+
   interface Props {
+    /** Rendered before the value. Decorative only — the label still speaks. */
+    icon?: Snippet
     value: string | number
     label: string
     unit?: string
@@ -8,7 +12,7 @@
     size?: 'normal' | 'large'
   }
 
-  let { value, label, unit, colour, size = 'normal' }: Props = $props()
+  let { value, label, unit, colour, size = 'normal', icon }: Props = $props()
 
   /**
    * Read as one phrase. Left to itself a screen reader announces the number and
@@ -19,12 +23,17 @@
 
 <div class="stat" class:large={size === 'large'} role="group" aria-label={spoken}>
   <span class="value num" style:color={colour} aria-hidden="true">
-    {value}{#if unit}<small>{unit}</small>{/if}
+    {#if icon}<span class="icon">{@render icon()}</span>{/if}{value}{#if unit}<small>{unit}</small
+      >{/if}
   </span>
   <span class="label" aria-hidden="true">{label}</span>
 </div>
 
 <style>
+  .icon {
+    margin-right: 0.3em;
+  }
+
   .stat {
     background: var(--panel);
     border: 1px solid var(--line);
