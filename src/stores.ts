@@ -311,15 +311,17 @@ export function clearWorkout(): void {
   engine.setWorkout(null)
 }
 
-/** Where free ride starts if the rider has not set a power before. */
-const DEFAULT_FREE_RIDE_W = 150
-
-/** No route: flat and endless, for setting a power and pedalling. */
+/**
+ * No route: a flat, endless road.
+ *
+ * It deliberately does *not* switch the power hold on. Doing so read as being
+ * locked into a wattage with the gears greyed out, which is the opposite of
+ * what "just pedal" promises. Holding a power is one tick away for anyone who
+ * wants it, and the gears mean something for everyone who does not.
+ */
 export function startFreeRide(): void {
   engine.setFreeRide()
-  // Holding a power *is* the mode, so arrive already holding one rather than
-  // making the rider find the switch. Whatever they last chose wins.
-  engine.setTargetPower(engine.targetPower ?? DEFAULT_FREE_RIDE_W)
+  engine.setTargetPower(null)
   recorder.reset()
 }
 

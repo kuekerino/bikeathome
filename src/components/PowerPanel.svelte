@@ -19,7 +19,8 @@
     heartRateBpm: number | null
     overCeiling: boolean
     cap: HeartRateCapSettings
-    disabled: boolean
+    /** Only ever changes what is *said*: the controls stay usable regardless. */
+    trainerConnected: boolean
     onSet: (watts: number | null) => void
     onNudge: (delta: number) => void
     onCapChange: (cap: HeartRateCapSettings) => void
@@ -32,7 +33,7 @@
     heartRateBpm,
     overCeiling,
     cap,
-    disabled,
+    trainerConnected,
     onSet,
     onNudge,
     onCapChange,
@@ -55,7 +56,7 @@
 <section class:engaged>
   <header>
     <label class="switch">
-      <input type="checkbox" checked={engaged} onchange={toggle} {disabled} />
+      <input type="checkbox" checked={engaged} onchange={toggle} />
       <span>
         <strong>Hold a set power</strong>
         <em>
@@ -71,7 +72,7 @@
     <div class="dial">
       <div class="steps">
         {#each STEPS as step (step)}
-          <button onclick={() => onNudge(-step)} {disabled} aria-label={`${step} watts less`}>
+          <button onclick={() => onNudge(-step)} aria-label={`${step} watts less`}>
             −{step}
           </button>
         {/each}
@@ -85,19 +86,24 @@
           step="5"
           value={target}
           onchange={(e) => onSet(Number(e.currentTarget.value))}
-          {disabled}
         />
         <span>W</span>
       </label>
 
       <div class="steps">
         {#each [...STEPS].reverse() as step (step)}
-          <button onclick={() => onNudge(step)} {disabled} aria-label={`${step} watts more`}>
+          <button onclick={() => onNudge(step)} aria-label={`${step} watts more`}>
             +{step}
           </button>
         {/each}
       </div>
     </div>
+
+    {#if !trainerConnected}
+      <p class="hint">
+        No trainer connected yet. The target is remembered and sent as soon as one is.
+      </p>
+    {/if}
 
     <p class="hint">
       Now: <strong>{Math.round(actual)} W</strong>

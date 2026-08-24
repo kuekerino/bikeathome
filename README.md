@@ -39,9 +39,8 @@ gradient while your speed follows the road.
 **Just pedal.** No route at all: set a wattage and hold it, the way an exercise bike
 works. Flat and endless, so there is no gradient, no elevation and nothing to finish —
 it still records, and still exports as a ride. Pick it from **Just pedal** on the
-opening screen; it arrives already holding a power, which means shifting will not change
-how hard it is. Turn the hold off if you would rather control the effort with the gears
-on a flat road.
+opening screen. Resistance follows the flat road and the gears work as they always do;
+tick **Hold a set power** if you would rather pedal against a fixed wattage.
 
 Everything below applies to both.
 

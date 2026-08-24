@@ -397,7 +397,7 @@
       heartRateBpm={ride.heartRateBpm}
       overCeiling={ride.overCeiling}
       cap={settings.heartRateCap}
-      disabled={trainerState !== 'connected'}
+      trainerConnected={trainerState === 'connected'}
       onSet={(watts) => engine.setTargetPower(watts)}
       onNudge={(delta) => engine.nudgeTargetPower(delta)}
       onCapChange={(heartRateCap) => updateSettings({ ...settings, heartRateCap })}
