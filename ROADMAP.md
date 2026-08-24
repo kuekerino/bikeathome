@@ -131,6 +131,43 @@ belong in the bindings table and get remapped like everything else.
 The recorded TCX should keep the workout's laps, since intervals are what lap structure
 is for.
 
+## Carrying a setup to another computer
+
+Everything is per-browser: settings in local storage, rides in IndexedDB. Ride from a
+second machine and it starts blank.
+
+**Syncing cannot work as this is hosted.** GitHub Pages is a static file host — it serves
+bytes and has nowhere to put any. Cross-browser state needs something that accepts a
+write, which means one of:
+
+- a small backend, and with it an account, a database and somewhere to run it;
+- a third-party store the browser can write to directly — a GitHub Gist under the rider's
+  own token, or a Dropbox or Drive app folder — which trades the server for a token to
+  manage and a service to depend on;
+- a peer-to-peer or CRDT arrangement, which is a large amount of machinery for a
+  single-user training log.
+
+All three are real dependencies and a privacy question, in exchange for solving a problem
+that needs two computers in two places sharing one bike.
+
+**The proportionate answer is a file you carry.** An export button producing a single
+JSON document, and an import that reads it back:
+
+- **Setup only** — settings, bindings, appearance, FTP, the heart-rate ceiling. A few
+  kilobytes, and the common case: a new laptop that should feel like the old one.
+- **Everything** — the same plus the ride history and its tracks. Tens of megabytes once
+  a season has accumulated, which is fine for a deliberate one-off.
+
+Two details worth settling before writing it. Import should **merge rides by id rather
+than replace**, so carrying last year's log onto a machine that already has this month's
+does not destroy one of them. And everything read back has to be **re-validated, not
+trusted** — the file has been off the machine and may have been edited, and a bad rider
+mass or a NaN in a sample poisons the physics with no obvious cause. `sanitizeSettings`
+already exists for exactly that reason and would do half the job.
+
+A format marker and a version number in the file, so a future version can refuse a
+newer one cleanly rather than misreading it.
+
 ## How the ride felt
 
 A ride that looks unremarkable in the data can have been terrible, and the file does not
