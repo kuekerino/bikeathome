@@ -141,9 +141,13 @@ export interface SimulationParameters {
  * wind speed and grade as little-endian signed 16-bit, then rolling and wind
  * resistance as single bytes.
  *
- * Defaults match a road bike on tarmac. Each field is clamped to what its
- * width can hold, so an extreme gradient produces the steepest representable
- * slope rather than a wrapped-around descent.
+ * Defaults match a road bike on tarmac, for anyone who wants the trainer to
+ * model the road itself. This app does not: it passes zeroes, because it has
+ * already put rolling and wind into the gradient at the speed the rider is
+ * really travelling, and the trainer would recompute them from its wheel.
+ * Each field is clamped to what its width can hold, so an extreme gradient
+ * produces the steepest representable slope rather than a wrapped-around
+ * descent.
  */
 export function buildSimulationParameters(
   gradePct: number,

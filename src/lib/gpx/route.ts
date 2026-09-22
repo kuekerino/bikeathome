@@ -15,6 +15,27 @@ const MIN_SEGMENT_M = 1
 /** Raw GPS elevation is noisy enough that per-segment gradients are meaningless without this. */
 const SMOOTHING_HALF_WINDOW_M = 25
 
+/**
+ * The run of road a gradient is measured over.
+ *
+ * Smoothing the elevation and then differentiating it between neighbouring
+ * points undoes the smoothing: a 1 Hz GPS trace puts those points 8 m apart,
+ * and less than a metre where the recording slowed down, so the slope is a
+ * difference of two nearly identical numbers each carrying the same metre of
+ * error. On a flat Berlin loop that produced a gradient that moved in 73% of
+ * all seconds, jumped by a percentage point every 8 seconds, and touched
+ * -23.6% — a cliff, on a road whose real extremes are about ±3%.
+ *
+ * Measuring over a fixed run fixes the baseline instead of letting the
+ * recording's sample rate decide it. 100 m is about twelve seconds of road at
+ * riding speed. It leaves a sustained climb exactly as steep as it is and
+ * costs only the sharpness of ramps shorter than itself: a 60 m wall at 10%
+ * arrives as 6%. Measured over this route, it takes gradient changes of a
+ * percentage point or more from 13.1 per km to 0.5, and the worst artefact
+ * from -24.9% to -7.7%.
+ */
+const GRADIENT_RUN_M = 100
+
 /** Beyond this, a gradient is almost certainly a GPS artefact rather than a real wall. */
 const MAX_GRADIENT_PCT = 25
 
@@ -60,7 +81,12 @@ export function haversineMetres(a: LatLon, b: LatLon): number {
 export class Route {
   readonly name: string | null
   readonly points: readonly RoutePoint[]
-  /** `gradients[i]` applies from `points[i]` to `points[i + 1]`. */
+  /**
+   * Raw slope of each segment: `gradients[i]` applies from `points[i]` to
+   * `points[i + 1]`. This is the route as recorded, which is what total ascent
+   * is counted from. What a rider is made to feel is {@link Route.gradientAt},
+   * measured over a fixed run instead.
+   */
   readonly gradients: readonly number[]
   readonly totalDistance: number
   readonly totalAscent: number
@@ -113,9 +139,33 @@ export class Route {
     })
   }
 
-  /** Gradient in percent at a distance along the route, clamped to the route's extent. */
+  /**
+   * The gradient a rider meets at this point, in percent.
+   *
+   * Measured over {@link GRADIENT_RUN_M} of road centred on the rider rather
+   * than read off the segment they happen to be standing on, so it is a
+   * continuous function of distance: it eases from one slope to the next
+   * instead of stepping at every point the GPS logged.
+   */
   gradientAt(distance: number): number {
-    return this.gradients[this.segmentAt(distance)]!
+    const half = GRADIENT_RUN_M / 2
+    const from = Math.max(0, Math.min(this.totalDistance, distance) - half)
+    const to = Math.min(this.totalDistance, Math.max(0, distance) + half)
+    const run = to - from
+    if (!(run > 0)) return 0
+
+    const rise = this.elevationAt(to) - this.elevationAt(from)
+    return clamp((rise / run) * 100, -MAX_GRADIENT_PCT, MAX_GRADIENT_PCT)
+  }
+
+  /** Elevation at a distance along the route, interpolated within the segment. */
+  elevationAt(distance: number): number {
+    const i = this.segmentAt(distance)
+    const from = this.points[i]!
+    const to = this.points[i + 1]!
+    const span = to.distance - from.distance
+    const t = clamp(span > 0 ? (distance - from.distance) / span : 0, 0, 1)
+    return lerp(from.ele, to.ele, t)
   }
 
   /** Interpolated position at a distance along the route, clamped to its extent. */
@@ -131,7 +181,9 @@ export class Route {
       lon: lerp(from.lon, to.lon, t),
       ele: lerp(from.ele, to.ele, t),
       distance: clamp(distance, 0, this.totalDistance),
-      gradient: this.gradients[i]!,
+      // The same slope the rider is being made to push against, not the
+      // segment's own, so the profile and the legs agree.
+      gradient: this.gradientAt(distance),
     }
   }
 

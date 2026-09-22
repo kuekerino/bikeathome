@@ -44,12 +44,24 @@ export function forcesAt(
  * The gradient to send the trainer so that the rider feels `relativeRatio`
  * times the force the real gradient would give them.
  *
- * The trainer adds its own rolling and drag on top of whatever gradient it is
- * given, so those are subtracted back out here and only the gravity-like
- * remainder is expressed as a gradient.
+ * The whole resisting force is expressed as a slope, and the trainer is told
+ * to add no rolling and no wind resistance of its own — see
+ * {@link TRAINER_ADDS_NOTHING}. That is what makes a gear mean something.
  *
- * At `relativeRatio` of 1 this is an exact identity: it returns `gradientPct`
- * unchanged. That is what lets cassette mode share this code path.
+ * It used to subtract the trainer's own rolling and drag back out, computed at
+ * the *road* speed. But the trainer has no idea what the road speed is: the
+ * only speed it knows is its wheel, which turns with the rider's cadence
+ * through the fitted cog. A harder virtual gear is a lower cadence at the same
+ * road speed, so the wheel slows, so the drag the trainer adds falls — by more
+ * than the gear raised the slope. Shifting up therefore did almost nothing
+ * through the middle of the block and made it *easier* at the bottom: at
+ * 27 km/h the force actually delivered ran 55.7 N in gear 8, 24.5 N in gear
+ * 16 and 30.3 N in gear 24, when it should have climbed evenly from 11.8 N to
+ * 38.7 N. A shifter that does nothing is a shifter you keep pulling, which is
+ * exactly what it felt like.
+ *
+ * Taking the trainer's own terms away leaves the force it applies equal to the
+ * force asked for, whatever the wheel happens to be doing.
  *
  * The result is not clipped to any trainer's range — that belongs with the
  * device, which knows its own limits.
@@ -60,17 +72,32 @@ export function adjustedGradient(
   relativeRatio: number,
   rider: RiderSettings,
 ): number {
-  const { rolling, drag, total } = forcesAt(gradientPct, speedMs, rider)
+  const { total } = forcesAt(gradientPct, speedMs, rider)
 
   // Uphill the gear multiplies the load; downhill it divides it, so a harder
   // gear gives something to push against instead of spinning out.
   const geared = total >= 0 ? total * relativeRatio : total / relativeRatio
 
-  const gravityOnly = geared - rolling - drag
-  const sine = clamp(gravityOnly / (rider.massKg * GRAVITY), -0.99, 0.99)
+  return forceToGradient(geared, rider)
+}
 
+/**
+ * The slope that asks a trainer for this force, given it adds nothing of its
+ * own. Newtons in, percent out.
+ */
+export function forceToGradient(force: number, rider: RiderSettings): number {
+  const sine = clamp(force / (rider.massKg * GRAVITY), -0.99, 0.99)
   return Math.tan(Math.asin(sine)) * 100
 }
+
+/**
+ * What we tell the trainer its own rolling and wind resistance are: nothing.
+ *
+ * Every resisting force is already in the gradient, worked out at the speed
+ * the rider is really travelling. Letting the trainer add more, from a wheel
+ * speed that is not the road speed, is what broke virtual shifting.
+ */
+export const TRAINER_ADDS_NOTHING = { crr: 0, cw: 0 } as const
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))

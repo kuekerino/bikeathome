@@ -181,7 +181,17 @@ decides how much power a given cadence produces.
 
 That split is deliberate. It keeps recorded watts and speed honest, so an exported
 ride is a real ride. It is also why cassette mode needs no separate code path: at a
-gear ratio of 1.0 the adjusted-gradient formula reduces to the route gradient exactly.
+gear ratio of 1.0 the whole thing reduces to the force the road really puts against
+you.
+
+Every resisting force — gravity, rolling, air — is worked out here, at the speed you
+are really travelling, and handed to the trainer as a single slope. The trainer is
+told to add nothing of its own. It has to be that way round: the only speed a trainer
+knows is its wheel, which turns with your cadence through a fixed cog, and that is not
+the speed you are doing on the road. Letting it add wind resistance from the wrong
+number is what used to make shifting meaningless — a harder gear means a lower
+cadence, so the wheel slowed, so the trainer quietly took away more than the gear had
+added.
 
 Climbing, a harder gear raises the gradient sent to the trainer. Descending it lowers
 it *towards* zero, restoring something to push against instead of spinning out.
@@ -205,9 +215,11 @@ chainring and cog your bike is actually in, so the middle of the block feels neu
   misbehaves, the keyboard still works.
 - **Settings and routes are per-browser.** No account, no sync. Switching from a laptop
   to a tablet means loading your GPX again.
-- **Elevation is smoothed** over 25 m either side of each point, and gradients are
-  clamped to 25%. Raw GPS elevation is noisy enough that per-segment gradients are
-  meaningless without it.
+- **Elevation is smoothed** over 25 m either side of each point, gradients are measured
+  over 100 m of road, and the result is clamped to 25%. Raw GPS elevation is noisy
+  enough that the slope between two neighbouring points is mostly error — on a flat
+  Berlin loop that read as a 23% cliff. Measuring over a fixed run costs you the
+  sharpness of ramps shorter than 100 m: a 60 m wall at 10% arrives as 6%.
 
 ## Self-hosting it
 

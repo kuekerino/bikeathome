@@ -137,9 +137,6 @@ function download(xml: string, filename: string): void {
 export function applySettings(settings: AppSettings): void {
   engine.configure(settings)
   simulated?.configure({ rider: settings.rider, drivetrain: settings.drivetrain })
-  // The trainer re-adds rolling and drag on top of whatever gradient it is
-  // given, so it needs the same coefficients the app subtracted out.
-  ftms?.configure(settings.rider)
   engine.bindings = settings.bindings
   engine.heartRateCap = settings.heartRateCap
   engine.setFtp(settings.ftpW)
@@ -162,7 +159,6 @@ export async function useSimulatedTrainer(): Promise<Trainer> {
  */
 export async function pairTrainer(showEverything = false): Promise<Trainer> {
   ftms ??= new FtmsTrainer()
-  ftms.configure(loadSettings().rider)
   await ftms.connect(showEverything)
   engine.attachTrainer(ftms)
   rememberDevice('trainer', ftms.deviceId)
@@ -230,7 +226,6 @@ export async function resumePairings(): Promise<Resumed> {
   const trainerDevice = pick(granted, known.trainer)
   if (trainerDevice) {
     ftms ??= new FtmsTrainer()
-    ftms.configure(loadSettings().rider)
     try {
       await withTimeout(RESUME_TIMEOUT_MS, 'Reconnecting to the trainer', ftms.resume(trainerDevice))
       engine.attachTrainer(ftms)

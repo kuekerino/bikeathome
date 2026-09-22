@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_RIDER, GRAVITY, type RiderSettings } from './constants'
-import { adjustedGradient, forcesAt } from './forces'
+import { adjustedGradient, forcesAt, gradientToRadians } from './forces'
 import { DEFAULT_DRIVETRAIN, GEAR_COUNT, relativeRatio, type DrivetrainSettings } from './gears'
 
 const CASSETTE: DrivetrainSettings = { ...DEFAULT_DRIVETRAIN, mode: 'cassette' }
@@ -46,14 +46,28 @@ describe('forcesAt', () => {
   })
 })
 
+/**
+ * What the trainer will actually put against the rider, now that it is told to
+ * add no rolling and no wind of its own: the along-slope pull of gravity at
+ * the gradient it was sent, and nothing else.
+ */
+function delivered(gradientSent: number, rider: RiderSettings): number {
+  return rider.massKg * GRAVITY * Math.sin(gradientToRadians(gradientSent))
+}
+
 describe('adjustedGradient at a neutral ratio', () => {
-  // The whole design rests on this: at a relative ratio of 1 the conversion
-  // must hand back exactly the gradient it was given. Cassette mode depends
-  // on it, and so does the claim that gearing never distorts the route.
-  it('is an exact identity across gradients and speeds', () => {
+  // The design rests on this: at a relative ratio of 1 the rider must meet
+  // exactly the force the real road would put against them — no more from the
+  // gear, and nothing extra invented by the trainer. Cassette mode depends on
+  // it, and so does the claim that gearing never distorts the route.
+  it('delivers exactly the road force across gradients and speeds', () => {
     for (const gradient of [-25, -12.5, -6, -1, 0, 1, 4.5, 8, 15, 25]) {
       for (const speed of [0, 2, 8, 20]) {
-        expect(adjustedGradient(gradient, speed, 1, DEFAULT_RIDER)).toBeCloseTo(gradient, 9)
+        const sent = adjustedGradient(gradient, speed, 1, DEFAULT_RIDER)
+        expect(delivered(sent, DEFAULT_RIDER)).toBeCloseTo(
+          forcesAt(gradient, speed, DEFAULT_RIDER).total,
+          9,
+        )
       }
     }
   })
@@ -64,28 +78,60 @@ describe('adjustedGradient at a neutral ratio', () => {
       { massKg: 120, crr: 0.008, cda: 0.55 },
     ]
     for (const rider of riders) {
-      expect(adjustedGradient(9, 6, 1, rider)).toBeCloseTo(9, 9)
-      expect(adjustedGradient(-9, 6, 1, rider)).toBeCloseTo(-9, 9)
+      for (const gradient of [9, -9]) {
+        const sent = adjustedGradient(gradient, 6, 1, rider)
+        expect(delivered(sent, rider)).toBeCloseTo(forcesAt(gradient, 6, rider).total, 9)
+      }
     }
   })
 
   it('holds in cassette mode whatever gear is selected', () => {
     for (const gear of [1, 8, 12, 24]) {
       const r = relativeRatio(gear, CASSETTE)
-      expect(adjustedGradient(7.5, 9, r, DEFAULT_RIDER)).toBeCloseTo(7.5, 9)
+      const sent = adjustedGradient(7.5, 9, r, DEFAULT_RIDER)
+      expect(delivered(sent, DEFAULT_RIDER)).toBeCloseTo(
+        forcesAt(7.5, 9, DEFAULT_RIDER).total,
+        9,
+      )
+    }
+  })
+
+  // The bug this replaces the old identity for. Holding the road and the
+  // speed still, every shift up must put more against the rider than the gear
+  // below it — evenly, with no flat stretch in the middle of the block and no
+  // gear that is easier than the one beneath it.
+  it('makes every shift up bite harder, by the ratio and nothing else', () => {
+    for (const [gradient, speed] of [
+      [0, 7.5],
+      [4, 5],
+      [-5, 12],
+    ] as const) {
+      const road = forcesAt(gradient, speed, DEFAULT_RIDER).total
+      let previous = Number.NEGATIVE_INFINITY
+      for (let gear = 1; gear <= GEAR_COUNT; gear++) {
+        const r = ratio(gear)
+        const force = delivered(adjustedGradient(gradient, speed, r, DEFAULT_RIDER), DEFAULT_RIDER)
+        expect(force).toBeGreaterThan(previous)
+        // The gear is the whole of the difference: uphill it multiplies the
+        // load, downhill it divides it.
+        expect(force).toBeCloseTo(road >= 0 ? road * r : road / r, 6)
+        previous = force
+      }
     }
   })
 })
 
 describe('adjustedGradient uphill', () => {
   it('makes a climb harder in a harder gear and easier in an easier one', () => {
-    const easy = adjustedGradient(5, 5, ratio(1), DEFAULT_RIDER)
-    const middle = adjustedGradient(5, 5, ratio(12), DEFAULT_RIDER)
-    const hard = adjustedGradient(5, 5, ratio(24), DEFAULT_RIDER)
+    const road = forcesAt(5, 5, DEFAULT_RIDER).total
+    const at = (gear: number) =>
+      delivered(adjustedGradient(5, 5, ratio(gear), DEFAULT_RIDER), DEFAULT_RIDER)
 
-    expect(easy).toBeLessThan(5)
-    expect(middle).toBeCloseTo(5, 0)
-    expect(hard).toBeGreaterThan(5)
+    expect(at(1)).toBeLessThan(road)
+    // Gear 12 is the stock 34:14 to within a percent, so it is the road
+    // itself to within a percent — not to within half a newton.
+    expect(Math.abs(at(12) / road - 1)).toBeLessThan(0.02)
+    expect(at(24)).toBeGreaterThan(road)
   })
 
   it('rises with every shift up', () => {
@@ -98,9 +144,9 @@ describe('adjustedGradient uphill', () => {
   })
 
   it('matches the reference values for the stock setup', () => {
-    expect(adjustedGradient(5, 5, ratio(24), DEFAULT_RIDER)).toBeCloseTo(12.8229, 3)
-    expect(adjustedGradient(5, 5, ratio(12), DEFAULT_RIDER)).toBeCloseTo(4.9276, 3)
-    expect(adjustedGradient(5, 5, ratio(1), DEFAULT_RIDER)).toBeCloseTo(0.7582, 3)
+    expect(adjustedGradient(5, 5, ratio(24), DEFAULT_RIDER)).toBeCloseTo(13.987876, 5)
+    expect(adjustedGradient(5, 5, ratio(12), DEFAULT_RIDER)).toBeCloseTo(6.067095, 5)
+    expect(adjustedGradient(5, 5, ratio(1), DEFAULT_RIDER)).toBeCloseTo(1.892826, 5)
   })
 })
 
@@ -117,8 +163,8 @@ describe('adjustedGradient downhill', () => {
   })
 
   it('matches the reference values for the stock setup', () => {
-    expect(adjustedGradient(-6, 12, ratio(24), DEFAULT_RIDER)).toBeCloseTo(-5.2394, 3)
-    expect(adjustedGradient(-6, 12, ratio(1), DEFAULT_RIDER)).toBeCloseTo(-9.0646, 3)
+    expect(adjustedGradient(-6, 12, ratio(24), DEFAULT_RIDER)).toBeCloseTo(-0.600539, 5)
+    expect(adjustedGradient(-6, 12, ratio(1), DEFAULT_RIDER)).toBeCloseTo(-4.400119, 5)
   })
 
   it('rises with every shift up', () => {

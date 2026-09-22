@@ -155,3 +155,63 @@ describe('Route lookups', () => {
     }
   })
 })
+
+describe('the gradient a rider actually meets', () => {
+  /** A track at `spacing` metres, with `noise` metres of error on each point. */
+  function track(shape: (m: number) => number, length: number, spacing: number, noise = 0) {
+    const points = []
+    let seed = 20260922
+    const jitter = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return (seed / 0x7fffffff - 0.5) * 2 * noise
+    }
+    for (let m = 0; m <= length; m += spacing) {
+      points.push({ lat: 52.5 + m / 111320, lon: 13.3, ele: shape(m) + jitter() })
+    }
+    return Route.from({ name: 't', points, hasElevation: true })
+  }
+
+  it('reports a sustained climb at its real steepness', () => {
+    const climb = track((m) => m * 0.06, 2000, 8)
+    for (const at of [500, 1000, 1500]) {
+      expect(climb.gradientAt(at)).toBeCloseTo(6, 1)
+    }
+  })
+
+  it('keeps a flat road flat when the elevation is noisy', () => {
+    // Half a metre of error per point is ordinary for GPS, and used to arrive
+    // as a cliff: differencing two neighbouring points a metre apart turns
+    // ±0.5 m of noise into a gradient of tens of percent.
+    const flat = track(() => 35, 3000, 8, 0.5)
+    for (let d = 200; d < 2800; d += 25) {
+      expect(Math.abs(flat.gradientAt(d))).toBeLessThan(1)
+    }
+  })
+
+  it('does not step from one point to the next', () => {
+    // A rider crossing a point should not feel the road change under them.
+    const rolling = track((m) => 10 * Math.sin(m / 150), 3000, 8, 0.2)
+    let worst = 0
+    for (let d = 200; d < 2800; d += 1) {
+      worst = Math.max(worst, Math.abs(rolling.gradientAt(d + 1) - rolling.gradientAt(d)))
+    }
+    // A metre of road, so a fraction of a percentage point at most.
+    expect(worst).toBeLessThan(0.2)
+  })
+
+  it('is unmoved by how densely the track was recorded', () => {
+    // The same hill logged at 1 m and at 10 m spacing is the same hill. It
+    // used to be read very differently, because the spacing *was* the baseline.
+    const shape = (m: number) => (m < 400 ? 0 : (m - 400) * 0.05)
+    const dense = track(shape, 1500, 1, 0.3)
+    const sparse = track(shape, 1500, 10, 0.3)
+    for (let d = 100; d < 1400; d += 50) {
+      expect(dense.gradientAt(d)).toBeCloseTo(sparse.gradientAt(d), 0)
+    }
+  })
+
+  it('still knows which way is up', () => {
+    const down = track((m) => 100 - m * 0.04, 1500, 8)
+    expect(down.gradientAt(700)).toBeCloseTo(-4, 1)
+  })
+})

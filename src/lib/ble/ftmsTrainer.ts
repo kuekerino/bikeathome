@@ -5,7 +5,7 @@
  * from a user gesture or the browser will refuse to show the chooser.
  */
 
-import { AIR_DENSITY, DEFAULT_RIDER, type RiderSettings } from '../physics/constants'
+import { TRAINER_ADDS_NOTHING } from '../physics/forces'
 import { trainerRequest } from './discovery'
 import {
   buildRequestControl,
@@ -53,7 +53,6 @@ export class FtmsTrainer implements Trainer {
   private controlPoint: BluetoothRemoteGATTCharacteristic | null = null
   private connection: ConnectionState = 'disconnected'
   private name = 'Trainer'
-  private rider: RiderSettings = DEFAULT_RIDER
 
   private desiredGradient = 0
   private sentGradient: number | null = null
@@ -76,10 +75,6 @@ export class FtmsTrainer implements Trainer {
 
   get state(): ConnectionState {
     return this.connection
-  }
-
-  configure(rider: RiderSettings): void {
-    this.rider = rider
   }
 
   /**
@@ -281,12 +276,10 @@ export class FtmsTrainer implements Trainer {
     const gradient = this.desiredGradient
     try {
       await this.write(
-        buildSimulationParameters(gradient, {
-          crr: this.rider.crr,
-          // FTMS wants a wind resistance coefficient in kg/m, which is the
-          // drag area scaled by air density.
-          cw: AIR_DENSITY * this.rider.cda,
-        }),
+        // Rolling and wind are already in the gradient, computed at the speed
+        // the rider is really travelling. The trainer only knows its wheel
+        // speed, so anything it adds is worked out from the wrong number.
+        buildSimulationParameters(gradient, TRAINER_ADDS_NOTHING),
       )
       this.sentGradient = gradient
       this.lastSentAt = now

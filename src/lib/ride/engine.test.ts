@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_RIDER, GRAVITY } from '../physics/constants'
+import { forcesAt, gradientToRadians } from '../physics/forces'
 import { DEFAULT_DRIVETRAIN } from '../physics/gears'
 import { climbRoute, FakeShifter, FakeTrainer, flatRoute } from '../../testing/fixtures'
 import type { Workout } from '../workout/model'
@@ -202,16 +204,24 @@ describe('gearing', () => {
     expect(trainer.lastGradient).toBeCloseTo(engine.snapshot().trainerGradient, 9)
   })
 
-  it('asks for the plain route gradient in cassette mode, in any gear', () => {
+  it('asks for the plain road force in cassette mode, in any gear', () => {
     engine.configure({ drivetrain: { ...DEFAULT_DRIVETRAIN, mode: 'cassette' } })
     engine.start()
     trainer.send({ powerW: 220 })
     new Clock(engine).advance(30)
 
+    // The number sent is no longer the route's own gradient: rolling and wind
+    // are folded into it, because the trainer is told to add none of its own.
+    // What must not change with the gear is the force that reaches the rider.
     for (const gear of [1, 12, 24]) {
       engine.setGear(gear)
       const snapshot = engine.snapshot()
-      expect(snapshot.trainerGradient).toBeCloseTo(snapshot.routeGradient, 9)
+      const road = forcesAt(snapshot.routeGradient, snapshot.speedMs, DEFAULT_RIDER).total
+      const sent =
+        DEFAULT_RIDER.massKg *
+        GRAVITY *
+        Math.sin(gradientToRadians(snapshot.trainerGradient))
+      expect(sent).toBeCloseTo(road, 6)
     }
   })
 
