@@ -42,14 +42,26 @@ export const DEFAULT_BINDINGS: Bindings = {
  * Which of the two roles a known button plays, before the rider says otherwise.
  * Anything not listed has no default at all: an unrecognised button does
  * nothing until it is bound, rather than guessing and shifting the wrong way.
+ *
+ * The `v2` bits are the Zwift Ride's, read off captured frames rather than
+ * guessed: bit 0 of the keypad bitmap is the left half's left arrow, and the
+ * six side buttons under the two hoods land on bits 8-10 and 12-14. Left
+ * shifts down and right shifts up, which is how the same buttons behave in
+ * Zwift itself. Every other button on the unit — the arrows, the letter
+ * buttons, the two power buttons — gets a row in the settings panel and does
+ * nothing until the rider says what it is for.
  */
 const DEFAULT_ROLE: Record<string, 'up' | 'down'> = {
   'v1:1': 'up',
   'v1:2': 'down',
-  'v2:0x200': 'up',
+  // Left hood: upper, middle, lower.
+  'v2:0x100': 'down',
+  'v2:0x200': 'down',
   'v2:0x400': 'down',
+  // Right hood: upper, middle, lower.
+  'v2:0x1000': 'up',
   'v2:0x2000': 'up',
-  'v2:0x4000': 'down',
+  'v2:0x4000': 'up',
 }
 
 /** What a shifter button should do: the rider's override, then the default. */

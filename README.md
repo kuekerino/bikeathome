@@ -197,9 +197,12 @@ chainring and cog your bike is actually in, so the middle of the block feels neu
 - **The Kickr Core 2 tops out around 16% simulated gradient.** Beyond that — a steep
   climb in a very tall virtual gear — the trainer clips, and the highest gears stop
   feeling different from one another.
-- **Click v2 support is best-effort.** The original Click's protocol is well
-  documented; newer firmware moved to a different service and button encoding that is
-  less firmly established. If shifting misbehaves, the keyboard still works.
+- **Only the unencrypted shifters work.** The Zwift Click and the Zwift Ride controller
+  speak in the clear and are supported; the Zwift Play controllers require an encrypted
+  handshake that this app does not do. On a Ride, the three side buttons under the left
+  hood shift down and the three under the right shift up, and every other button gets
+  a row under **Controls** that does nothing until you give it a meaning. If shifting
+  misbehaves, the keyboard still works.
 - **Settings and routes are per-browser.** No account, no sync. Switching from a laptop
   to a tablet means loading your GPX again.
 - **Elevation is smoothed** over 25 m either side of each point, and gradients are
@@ -291,10 +294,13 @@ gives 34.6 km/h on the flat, and coasting a 6% descent settles at 49.6 km/h.
 ## Credit
 
 No source code here is copied from another project; what was used is factual. FTMS is
-an open Bluetooth SIG standard. The Zwift Click's UUIDs, `RideOn` handshake and message
-encoding come from the reverse-engineering published by
-[zwiftplay](https://github.com/ajchellew/zwiftplay) (no declared licence) and
-[Zwift_click_handling](https://github.com/jat255/Zwift_click_handling) (MIT). The
+an open Bluetooth SIG standard. The Zwift shifters' UUIDs, `RideOn` handshake and
+message encoding come from the reverse-engineering published by
+[zwiftplay](https://github.com/ajchellew/zwiftplay) (no declared licence),
+[Zwift_click_handling](https://github.com/jat255/Zwift_click_handling) (MIT) and, for
+the Zwift Ride's keypad bitmap,
+[Zword](https://github.com/Fuenfachsen/Zword_ZwiftRide-to-BLE-Keyboard) (GPL-3.0) —
+facts about a wire format, read rather than copied. The
 "track resistance" force model follows the approach documented in
 [SHIFTR](https://github.com/JuergenLeber/SHIFTR) (GPL-3.0); the formulas here were
 derived and written independently from that description.

@@ -105,6 +105,39 @@ describe('newer keypad reports', () => {
   it('ignores a report with no bitmap at all', () => {
     expect(parseClickMessage(bytes(0x23))).toEqual({ kind: 'ignored', type: 0x23 })
   })
+
+  /**
+   * Captured off a Zwift Ride: a five-byte varint holding all 32 bits, then
+   * four length-delimited sub-messages for the analog buttons. Written out by
+   * hand rather than built from `varint`, because the whole point is that these
+   * are the bytes the device really sends.
+   */
+  const ridePress = (...bitmapBytes: number[]) =>
+    bytes(
+      0x23,
+      0x08,
+      ...bitmapBytes,
+      0x1a, 0x04, 0x08, 0x00, 0x10, 0x00,
+      0x1a, 0x04, 0x08, 0x01, 0x10, 0x00,
+      0x1a, 0x04, 0x08, 0x02, 0x10, 0x00,
+      0x1a, 0x04, 0x08, 0x03, 0x10, 0x00,
+    )
+
+  it('reads a full-width Zwift Ride bitmap without losing the top bit', () => {
+    // Nothing held: every one of the 32 bits is set.
+    expect(parseClickMessage(ridePress(0xff, 0xff, 0xff, 0xff, 0x0f))).toEqual({
+      kind: 'buttons',
+      source: 'keypadV2',
+      bitmap: 0xffffffff,
+    })
+  })
+
+  it('reads a Zwift Ride button out of the middle of the bitmap', () => {
+    // Right hood, middle side button: bit 13, in the second seven-bit group.
+    expect(parseClickMessage(ridePress(0xff, 0xbf, 0xff, 0xff, 0x0f))).toMatchObject({
+      bitmap: 0xffffdfff,
+    })
+  })
 })
 
 describe('other messages', () => {
@@ -156,7 +189,9 @@ describe('ClickShiftDetector', () => {
   const v2 = (all: number, ...down: number[]): ClickMessage => ({
     kind: 'buttons',
     source: 'keypadV2',
-    bitmap: down.reduce((map, bit) => map & ~bit, all),
+    // `>>> 0` because the parser hands on an unsigned value, and a 32-bit
+    // bitmap is precisely where a signed one would behave differently.
+    bitmap: down.reduce((map, bit) => map & ~bit, all) >>> 0,
   })
 
   it('does not double-report when both formats are interleaved', () => {
@@ -214,6 +249,24 @@ describe('ClickShiftDetector', () => {
     expect(detector.update(v2(0x0fff, 0x200))).toEqual([])
     expect(detector.update(v2(0x0fff))).toEqual([])
     expect(detector.update(v2(0x0fff, 0x200))).toEqual(['v2:0x200'])
+  })
+
+  it('reports a button from a full 32-bit bitmap', () => {
+    // The regression this exists for: a Zwift Ride rests at 0xFFFFFFFF, which
+    // JavaScript's bitwise operators see as -1. The bit walk used to compare
+    // against that directly and stop before its first iteration, so every
+    // button on the unit went unreported and the shifter did nothing at all.
+    const detector = new ClickShiftDetector()
+    expect(detector.update(v2(0xffffffff))).toEqual([])
+    expect(detector.update(v2(0xffffffff, 0x2000))).toEqual(['v2:0x2000'])
+    expect(detector.update(v2(0xffffffff))).toEqual([])
+    expect(detector.update(v2(0xffffffff, 0x400))).toEqual(['v2:0x400'])
+  })
+
+  it('reports the top bit of a 32-bit bitmap', () => {
+    const detector = new ClickShiftDetector()
+    detector.update(v2(0xffffffff))
+    expect(detector.update(v2(0xffffffff, 0x80000000))).toEqual(['v2:0x80000000'])
   })
 
   it('reports both buttons separately when both are held', () => {

@@ -1,10 +1,16 @@
 /**
- * Zwift Click wire protocol.
+ * Zwift shifter wire protocol — the Click, and the Zwift Ride controller.
  *
  * Zwift never published this; it comes from the reverse-engineering work in
- * ajchellew/zwiftplay and jat255/Zwift_click_handling. The device speaks
- * protobuf-shaped messages, but only ever with varint fields, so a couple of
- * dozen lines read them without a protobuf runtime.
+ * ajchellew/zwiftplay, jat255/Zwift_click_handling and, for the Ride's keypad
+ * bitmap, Fuenfachsen/Zword. The devices speak protobuf-shaped messages, and
+ * everything worth reading here is a varint, so a couple of dozen lines read
+ * them without a protobuf runtime — the Ride's trailing analog sub-messages
+ * are length-delimited, which stops the walk after the bitmap has been read,
+ * which is all we want from that frame anyway.
+ *
+ * The Zwift Play controllers are not supported: they require an encrypted
+ * handshake, and nothing here does encryption.
  *
  * Pure bytes in, meaning out. The Web Bluetooth plumbing lives next door.
  */
@@ -165,10 +171,18 @@ export class ClickShiftDetector {
   }
 
   private bitmapButtons(bitmap: number): ButtonId[] {
-    this.everSet |= bitmap
+    // JavaScript's bitwise operators work on *signed* 32-bit integers, and a
+    // full-width keypad bitmap is exactly where that bites: a Zwift Ride sends
+    // 0xFFFFFFFF at rest, which `|=` stores as -1. The old loop condition
+    // `bit <= this.everSet` then compared 1 against -1, ended before its first
+    // iteration, and no button on the device was ever reported. `>>> 0` puts
+    // the value back in unsigned range, and counting bit positions rather than
+    // walking a value past the top bit keeps it there.
+    this.everSet = (this.everSet | bitmap) >>> 0
 
     const pressed: ButtonId[] = []
-    for (let bit = 1; bit <= this.everSet; bit <<= 1) {
+    for (let index = 0; index < 32; index += 1) {
+      const bit = (1 << index) >>> 0
       if ((this.everSet & bit) !== 0 && (bitmap & bit) === 0) {
         pressed.push(`v2:0x${bit.toString(16)}`)
       }
