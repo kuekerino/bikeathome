@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "web-bluetooth", "node"],
 
@@ -19,5 +20,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.svelte"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.svelte", "tools/**/*.ts"]
 }

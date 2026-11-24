@@ -219,7 +219,54 @@ chainring and cog your bike is actually in, so the middle of the block feels neu
   over 100 m of road, and the result is clamped to 25%. Raw GPS elevation is noisy
   enough that the slope between two neighbouring points is mostly error — on a flat
   Berlin loop that read as a 23% cliff. Measuring over a fixed run costs you the
-  sharpness of ramps shorter than 100 m: a 60 m wall at 10% arrives as 6%.
+  sharpness of ramps shorter than 100 m: a 60 m wall at 10% arrives as 6%. For routes
+  in Spain or England, the course tool below replaces GPS elevation with surveyed
+  heights.
+
+## Real road heights from LiDAR
+
+GPS elevation is the weakest part of any GPX file. The course tool replaces it with
+heights from airborne laser surveys, so a climb feels as steep as the road really is:
+
+```sh
+npm run course -- my-ride.gpx
+```
+
+It writes two files next to the GPX:
+
+- **`my-ride.lidar.gpx`**: the same file with every `<ele>` taken from LiDAR. Times,
+  heart rate and everything else stay as they were. Load it in the app like any route.
+- **`my-ride.course.js`**: the road and a square of terrain around it, in the format
+  [golden-hour-ride](https://github.com/jamiemarsland/golden-hour-ride)'s 3D renderer
+  loads. Nothing in this app reads it yet.
+
+The data source is picked by where the route is:
+
+| Area | Data | Licence |
+| --- | --- | --- |
+| Spain (checked on Mallorca) | IGN national terrain model, 5 m grid, from the PNOA LiDAR flights | CC BY 4.0 |
+| England | Environment Agency LiDAR Composite DTM, 1 m | Open Government Licence v3.0 |
+
+A GPX line can sit a few metres off the road, on the bank above it or the drop below.
+So at every 5 m the tool looks up to 7 m either side and takes the flattest spot, since
+a road is a level shelf in the slope. Then it smooths, as golden-hour-ride does.
+
+**Bridges and tunnels are listed, and worth a look.** A terrain model is bare ground:
+under a bridge it shows the gorge, and over a tunnel the hill. The tool spots both by
+a jump steeper than any road climbs, lays a straight line across, and prints where it
+did, so you can check each one against a map.
+
+Worth knowing:
+
+- **Your route's area reaches the data service.** The tool asks for the tiles along
+  your route, so the service sees where you ride, though never the GPX itself. Tiles
+  are cached under `.cache/course`, so running it again makes no requests.
+- **Nothing it writes is committed.** `*.gpx` and `*.course.js` are ignored, like the
+  route itself.
+- **Needs Node 22.18 or newer**, which runs the TypeScript as it is. Behind an HTTPS
+  proxy, set `NODE_USE_ENV_PROXY=1` so Node's fetch goes through it.
+- **The England server sometimes stalls.** Requests hang and then go through on a
+  retry, so the tool retries, and a run there can take some minutes.
 
 ## Self-hosting it
 
@@ -292,6 +339,7 @@ obligation on either side.
 | `npm run build` | production build into `dist/` |
 | `npm test` | unit tests |
 | `npm run check` | typecheck Svelte and TypeScript |
+| `npm run course -- <route.gpx>` | LiDAR heights for a route, see above |
 
 No runtime dependencies. GPX parsing uses the browser's `DOMParser`, TCX is built with
 template strings, the charts are hand-rolled SVG, and the Click's protobuf messages are
@@ -305,7 +353,12 @@ gives 34.6 km/h on the flat, and coasting a 6% descent settles at 49.6 km/h.
 
 ## Credit
 
-No source code here is copied from another project; what was used is factual. FTMS is
+The course tool is the exception to what follows: its National Grid conversion, its
+TIFF reader and its road-height method are ported from
+[golden-hour-ride](https://github.com/jamiemarsland/golden-hour-ride) (MIT, © 2026
+Jamie Marsland), and say so where they appear in `src/lib/course`.
+
+Otherwise no source code here is copied from another project; what was used is factual. FTMS is
 an open Bluetooth SIG standard. The Zwift shifters' UUIDs, `RideOn` handshake and
 message encoding come from the reverse-engineering published by
 [zwiftplay](https://github.com/ajchellew/zwiftplay) (no declared licence),

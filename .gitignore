@@ -8,3 +8,7 @@ dist/
 # of the repository; the synthetic demo route is the one exception.
 *.gpx
 !public/demo-route.gpx
+
+# Course tool output (it carries the route) and its LiDAR tile cache.
+*.course.js
+.cache/
