@@ -163,8 +163,8 @@ async function main(): Promise<void> {
   }
   for (const span of profile.bridged) {
     lines.push(
-      `  bridged   ${(span.from / 1000).toFixed(2)} to ${(span.to / 1000).toFixed(2)} km straightened ` +
-        '(a bridge or tunnel the terrain model leaves out; worth a look)',
+      `  smoothed  ${(span.from / 1000).toFixed(2)} to ${(span.to / 1000).toFixed(2)} km, a jump in the ground ` +
+        'data: a bridge, a tunnel, or the road on an embankment. Worth a look on a map.',
     )
   }
   if (terrainNote) lines.push(terrainNote)

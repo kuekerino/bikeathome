@@ -44,6 +44,25 @@ describe('roadHeights', () => {
 
   it('is NaN where the terrain model has nothing', () => {
     expect(roadHeights([{ x: 0, z: 0 }], () => Number.NaN)).toEqual([Number.NaN])
+    const points = [0, 5, 10].map((x) => ({ x, z: 0 }))
+    expect(roadHeights(points, (x) => (x > 2 && x < 8 ? Number.NaN : 1))).toEqual([1, Number.NaN, 1])
+  })
+
+  // Farmland: the road carries a slight camber, and for 30 m a perfectly flat
+  // field lies 6 m to the south and 4 m lower.
+  const camber = (x: number, z: number) => {
+    const field = x >= 50 && x <= 80 && z >= 4.5
+    return field ? 46 : 50 - 0.04 * z
+  }
+  const lane = Array.from({ length: 27 }, (_, k) => ({ x: k * 5, z: 0 }))
+
+  it('does not hop onto a flatter field beside the road', () => {
+    roadHeights(lane, camber).forEach((h) => expect(h).toBeCloseTo(50, 1))
+  })
+
+  it('would hop, choosing each point alone', () => {
+    const alone = roadHeights(lane, camber, 0)
+    expect(alone.filter((h) => h === 46)).toHaveLength(7)
   })
 })
 

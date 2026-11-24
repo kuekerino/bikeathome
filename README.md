@@ -248,13 +248,19 @@ The data source is picked by where the route is:
 | England | Environment Agency LiDAR Composite DTM, 1 m | Open Government Licence v3.0 |
 
 A GPX line can sit a few metres off the road, on the bank above it or the drop below.
-So at every 5 m the tool looks up to 7 m either side and takes the flattest spot, since
-a road is a level shelf in the slope. Then it smooths, as golden-hour-ride does.
+So at every 5 m the tool looks up to 7 m either side for the flattest spot, since a
+road is a level shelf in the slope, and only lets that spot drift sideways gradually,
+since a road does not jump. Without that, in farmland the flattest spot hops onto a
+field or a ditch beside the road and back. Then it smooths, as golden-hour-ride does.
 
-**Bridges and tunnels are listed, and worth a look.** A terrain model is bare ground:
-under a bridge it shows the gorge, and over a tunnel the hill. The tool spots both by
-a jump steeper than any road climbs, lays a straight line across, and prints where it
-did, so you can check each one against a map.
+**Jumps in the ground data are smoothed and listed.** A terrain model is bare ground:
+under a bridge it shows the gorge, over a tunnel the hill, and beside a road on an
+embankment a field metres lower. The tool spots these by a jump steeper than any road
+climbs, lays a straight line across, and prints where, so you can check each on a map.
+
+On a 72 km ride across the Mallorcan plain, the result agreed with the rider's own
+altimeter to within one percentage point of gradient over 100 m (RMS), and put the
+climbing at 798 m where the altimeter's summary said 797 m.
 
 Worth knowing:
 

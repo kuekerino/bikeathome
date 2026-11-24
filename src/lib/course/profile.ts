@@ -88,36 +88,102 @@ export function cumulative(line: readonly Local[]): number[] {
 }
 
 /**
- * Raw road height at each point: across the road, the spot where the ground
- * is flattest. A road is a level shelf in a slope; the line from a GPS or a
- * planner can sit a few metres off it, on the bank or the drop. NaN where the
- * terrain model has nothing.
+ * What moving the chosen spot one metre sideways between neighbouring points
+ * costs, in the same units as cross-slope (metres of height across 3 m).
+ *
+ * Without it every point chooses alone, and in farmland the flattest spot
+ * hops between the road and a field or ditch bed beside it, 3 to 5 m higher
+ * or lower, and back again 30 m later. A road does not jump sideways, so the
+ * spot may only drift.
+ *
+ * Measured on a 72 km ride across the Mallorcan plain, against the rider's
+ * own altimeter: the gradient over 100 m agrees to 0.93 percentage points
+ * (RMS) at anything from 0.2 to 1, against 0.94 choosing alone, because the
+ * bridge repair was already catching the hops. What changes is the report:
+ * stretches flagged as straightened fall from 15, none of them bridges, to 2.
+ * 0.5 sits in the middle of that flat range.
  */
-export function roadHeights(points: readonly Local[], height: (x: number, z: number) => number): number[] {
-  return points.map((p, k) => {
+export const SHIFT_COST = 0.5
+
+/**
+ * Raw road height at each point: across the road, the spot where the ground
+ * is flattest, along a path that only drifts sideways. A road is a level
+ * shelf in a slope; the line from a GPS or a planner can sit a few metres
+ * off it, on the bank or the drop. NaN where the terrain model has nothing.
+ *
+ * The path is the cheapest one through all the candidates at once (a Viterbi
+ * search): each spot costs its cross-slope, each sideways step between
+ * neighbours costs `shiftCost` per metre.
+ */
+export function roadHeights(
+  points: readonly Local[],
+  height: (x: number, z: number) => number,
+  shiftCost = SHIFT_COST,
+): number[] {
+  const offsets: number[] = []
+  for (let o = -SEARCH_HALF_WIDTH_M; o <= SEARCH_HALF_WIDTH_M; o++) offsets.push(o)
+  const m = offsets.length
+  const n = points.length
+  const cost = new Float64Array(n * m)
+  const value = new Float64Array(n * m)
+  const empty = new Uint8Array(n)
+
+  points.forEach((p, k) => {
     const a = points[Math.max(0, k - 1)]!
-    const b = points[Math.min(points.length - 1, k + 1)]!
+    const b = points[Math.min(n - 1, k + 1)]!
     const length = Math.hypot(b.x - a.x, b.z - a.z) || 1
     // Perpendicular to the direction of travel
     const px = -(b.z - a.z) / length
     const pz = (b.x - a.x) / length
-
-    let best = Number.POSITIVE_INFINITY
-    let found = Number.NaN
-    for (let offset = -SEARCH_HALF_WIDTH_M; offset <= SEARCH_HALF_WIDTH_M; offset++) {
-      const at = (o: number) => height(p.x + px * o, p.z + pz * o)
+    const at = (o: number) => height(p.x + px * o, p.z + pz * o)
+    let any = false
+    offsets.forEach((offset, j) => {
       const before = at(offset - CROSS_HALF_M)
       const centre = at(offset)
       const after = at(offset + CROSS_HALF_M)
-      if (Number.isNaN(before) || Number.isNaN(centre) || Number.isNaN(after)) continue
-      const cross = Math.abs(after - before) + Math.abs(offset) * OFFSET_PENALTY
-      if (cross < best) {
-        best = cross
-        found = centre
-      }
+      const ok = !Number.isNaN(before) && !Number.isNaN(centre) && !Number.isNaN(after)
+      cost[k * m + j] = ok ? Math.abs(after - before) + Math.abs(offset) * OFFSET_PENALTY : Number.POSITIVE_INFINITY
+      value[k * m + j] = ok ? centre : Number.NaN
+      any ||= ok
+    })
+    // No data anywhere across: let the path pass freely, and report NaN.
+    if (!any) {
+      empty[k] = 1
+      cost.fill(0, k * m, (k + 1) * m)
     }
-    return found
   })
+  if (n === 0) return []
+
+  // Forward pass: cheapest total cost of arriving at each offset.
+  let total = Float64Array.from(cost.subarray(0, m))
+  const from = new Uint8Array(n * m)
+  for (let k = 1; k < n; k++) {
+    const next = new Float64Array(m)
+    for (let j = 0; j < m; j++) {
+      let best = Number.POSITIVE_INFINITY
+      let arg = j
+      for (let i = 0; i < m; i++) {
+        const c = total[i]! + shiftCost * Math.abs(offsets[i]! - offsets[j]!)
+        if (c < best) {
+          best = c
+          arg = i
+        }
+      }
+      next[j] = best + cost[k * m + j]!
+      from[k * m + j] = arg
+    }
+    total = next
+  }
+
+  // Back along the cheapest path.
+  let j = 0
+  for (let i = 1; i < m; i++) if (total[i]! < total[j]!) j = i
+  const out = new Array<number>(n)
+  for (let k = n - 1; k >= 0; k--) {
+    out[k] = empty[k] ? Number.NaN : value[k * m + j]!
+    j = from[k * m + j]!
+  }
+  return out
 }
 
 /** Fills NaN from the nearest known neighbour before it, or after it at the start. */
