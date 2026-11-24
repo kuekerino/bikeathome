@@ -153,6 +153,116 @@ export function isLoop(points: readonly Local[]): boolean {
 }
 
 /**
+ * Two GPS traces of the same road lie a few metres apart, so a road ridden
+ * twice would be drawn as two roads side by side, each one's verge growing
+ * across the other's lane. Within this distance of an earlier pass, and
+ * running along it in either direction, a point is taken to be on the same
+ * road. GPS error is a few metres either way; two separate roads side by
+ * side are rarely this close.
+ */
+const REVISIT_M = 10
+/** How far back along the route an earlier pass must be. Rules out the point's own neighbours. */
+const REVISIT_GAP_M = 300
+/** Parallel or opposite to within about 25°. A crossing road is not a revisit. */
+const REVISIT_ALIGN = 0.9
+/** Joining and leaving the earlier pass happens over this many points, not in one step. */
+const REVISIT_RAMP = 6
+
+export interface Merged {
+  points: Local[]
+  heights: number[]
+  /** Points laid onto an earlier pass. */
+  shared: number
+}
+
+/**
+ * Lays each stretch of road ridden more than once onto its first pass, so the
+ * road exists once. For drawing only: the GPX keeps every pass as ridden.
+ * Expects evenly spaced points, as `resample` gives.
+ */
+export function mergeRevisits(points: readonly Local[], heights: readonly number[], step: number): Merged {
+  const n = points.length
+  const cell = REVISIT_M * 2
+  const key = (p: Local) => `${Math.floor(p.x / cell)},${Math.floor(p.z / cell)}`
+  const index = new Map<string, number[]>()
+  points.forEach((p, k) => {
+    const bucket = index.get(key(p))
+    if (bucket) bucket.push(k)
+    else index.set(key(p), [k])
+  })
+  const direction = (line: readonly Local[], k: number) => {
+    const a = line[Math.max(0, k - 1)]!
+    const b = line[Math.min(n - 1, k + 1)]!
+    const length = Math.hypot(b.x - a.x, b.z - a.z) || 1
+    return { x: (b.x - a.x) / length, z: (b.z - a.z) / length }
+  }
+
+  const out = points.map((p) => ({ ...p }))
+  const outHeights = heights.slice()
+  const gap = Math.ceil(REVISIT_GAP_M / step)
+  // Where each point would sit on the earlier pass, or null.
+  const target: ({ x: number; z: number; h: number } | null)[] = new Array(n).fill(null)
+
+  // A point's weight eases from 0 to 1 over the first and last few points of a
+  // run, so it needs the targets on both sides of it: settle it once they exist.
+  let shared = 0
+  const settled = new Uint8Array(n)
+  const settle = (f: number) => {
+    settled[f] = 1
+    const t = target[f]
+    if (!t) return
+    shared++
+    let before = 0
+    while (before < REVISIT_RAMP && f - before - 1 >= 0 && target[f - before - 1]) before++
+    let after = 0
+    while (after < REVISIT_RAMP && f + after + 1 < n && target[f + after + 1]) after++
+    const w = Math.min(before + 1, after + 1, REVISIT_RAMP + 1) / (REVISIT_RAMP + 1)
+    const p = points[f]!
+    out[f] = { x: p.x + (t.x - p.x) * w, z: p.z + (t.z - p.z) * w }
+    outHeights[f] = heights[f]! + (t.h - heights[f]!) * w
+  }
+
+  for (let i = gap; i < n; i++) {
+    // Everything this point can match against is far enough back to be settled.
+    for (let f = Math.max(0, i - gap - REVISIT_RAMP); f <= i - gap; f++) if (!settled[f]) settle(f)
+    const p = points[i]!
+    const own = direction(points, i)
+    const cx = Math.floor(p.x / cell)
+    const cz = Math.floor(p.z / cell)
+    let best = REVISIT_M
+    let found: { x: number; z: number; h: number } | null = null
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        for (const j of index.get(`${cx + dx},${cz + dz}`) ?? []) {
+          if (j >= i - gap) continue // its segment to j + 1 must be settled too
+          const along = direction(points, j)
+          if (Math.abs(own.x * along.x + own.z * along.z) < REVISIT_ALIGN) continue
+          // Onto the earlier pass as already laid out, so a third pass joins the first.
+          for (const k of [j - 1, j]) {
+            if (k < 0 || k + 1 >= n) continue
+            const a = out[k]!
+            const b = out[k + 1]!
+            const ex = b.x - a.x
+            const ez = b.z - a.z
+            const t = Math.max(0, Math.min(1, ((p.x - a.x) * ex + (p.z - a.z) * ez) / (ex * ex + ez * ez || 1)))
+            const x = a.x + ex * t
+            const z = a.z + ez * t
+            const d = Math.hypot(p.x - x, p.z - z)
+            if (d < best) {
+              best = d
+              found = { x, z, h: outHeights[k]! + (outHeights[k + 1]! - outHeights[k]!) * t }
+            }
+          }
+        }
+      }
+    }
+    target[i] = found
+  }
+  for (let f = 0; f < n; f++) if (!settled[f]) settle(f)
+  return { points: out, heights: outHeights, shared }
+}
+
+/**
  * Road control points from the resampled line and its heights. A loop drops
  * its last point, which the renderer's closed curve would otherwise double;
  * an open road keeps its end.

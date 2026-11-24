@@ -6,6 +6,7 @@ import {
   encodeDem,
   fillTerrain,
   isLoop,
+  mergeRevisits,
   MAX_TERRAIN_CELLS,
   planTerrain,
   roadLine,
@@ -103,5 +104,48 @@ describe('courseScript', () => {
     new Function('window', courseScript('my-ride', course))(window)
     expect(window.RIDE_COURSES?.['my-ride']).toEqual(course)
     expect(window.RIDE_COURSES?.['other']).toBe(course)
+  })
+})
+
+describe('mergeRevisits', () => {
+  // Out along z = 0 for 1 km, round a turn, and back along z = 4: the same
+  // road ridden twice, the return trace 4 m to the side as GPS leaves it.
+  const out = Array.from({ length: 201 }, (_, k) => ({ x: k * 5, z: 0 }))
+  const turn = Array.from({ length: 3 }, (_, k) => ({ x: 1000 + 2 * (k + 1), z: 1 + k }))
+  const back = Array.from({ length: 201 }, (_, k) => ({ x: 1000 - k * 5, z: 4 }))
+  const points = [...out, ...turn, ...back]
+  const heights = points.map((p) => p.x / 100 + (p.z > 2 ? 0.3 : 0))
+
+  it('lays the second pass onto the first', () => {
+    const merged = mergeRevisits(points, heights, 5)
+    expect(merged.shared).toBeGreaterThan(130)
+    // well inside the return leg: on the outbound line, at its height
+    const k = out.length + turn.length + 100
+    expect(merged.points[k]!.z).toBeCloseTo(0, 6)
+    expect(merged.points[k]!.x).toBeCloseTo(points[k]!.x, 6)
+    expect(merged.heights[k]).toBeCloseTo(points[k]!.x / 100, 6)
+  })
+
+  it('leaves the first pass alone, and eases on and off rather than jumping', () => {
+    const merged = mergeRevisits(points, heights, 5)
+    merged.points.slice(0, out.length).forEach((p, k) => expect(p).toEqual(out[k]))
+    for (let k = 1; k < merged.points.length; k++) {
+      const sideways = Math.abs(merged.points[k]!.z - merged.points[k - 1]!.z)
+      expect(sideways).toBeLessThan(1.5)
+    }
+  })
+
+  it('ignores a road that crosses, and one that is merely nearby', () => {
+    // East 1 km, north 500 m, west 500 m, then south across the first side at x = 500.
+    const square = [
+      ...Array.from({ length: 200 }, (_, k) => ({ x: k * 5, z: 0 })),
+      ...Array.from({ length: 100 }, (_, k) => ({ x: 1000, z: k * 5 })),
+      ...Array.from({ length: 100 }, (_, k) => ({ x: 1000 - k * 5, z: 500 })),
+      ...Array.from({ length: 200 }, (_, k) => ({ x: 500, z: 500 - k * 5 })),
+    ]
+    const merged = mergeRevisits(square, square.map(() => 0), 5)
+    expect(merged.shared).toBe(0)
+    const parallel = [...out, ...Array.from({ length: 201 }, (_, k) => ({ x: 1000 - k * 5, z: 25 }))]
+    expect(mergeRevisits(parallel, parallel.map(() => 0), 5).shared).toBe(0)
   })
 })

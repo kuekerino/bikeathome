@@ -27,6 +27,7 @@ import {
   encodeDem,
   fillTerrain,
   isLoop,
+  mergeRevisits,
   planTerrain,
   roadLine,
   terrainVertices,
@@ -126,12 +127,13 @@ async function main(): Promise<void> {
     const filled = fillTerrain(heights, plan.cells + 1)
 
     const loop = isLoop(resampled.points)
+    const merged = mergeRevisits(resampled.points, profile.heights, PROFILE_STEP_M)
     const course: Course = {
       name: track.name ?? base,
       size: plan.size,
       cells: plan.cells,
       ...encodeDem(heights),
-      road: roadLine(resampled.points, profile.heights, loop),
+      road: roadLine(merged.points, merged.heights, loop),
       credit: source.credit,
       loop,
       region: source.region,
@@ -145,7 +147,10 @@ async function main(): Promise<void> {
       `  terrain   ${(plan.size / 1000).toFixed(1)} km square, ${plan.cell} m cells` +
       (filled.holes ? `, ${filled.holes} small holes filled` : '') +
       (filled.sea ? `, ${filled.sea} cells with no data treated as sea` : '') +
-      `\n  loop      ${loop ? 'yes, the ends meet' : 'no, it runs from A to B'}`
+      `\n  loop      ${loop ? 'yes, the ends meet' : 'no, it runs from A to B'}` +
+      (merged.shared
+        ? `\n  shared    ${((merged.shared * PROFILE_STEP_M) / 1000).toFixed(1)} km ridden more than once, drawn as one road`
+        : '')
   }
 
   // --- what happened ----------------------------------------------------------
