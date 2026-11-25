@@ -508,7 +508,7 @@ const chunks = [];
 
 /* ---------- 19th-century touches (real courses): sheep on the hill, hay stooks in the vale ---------- */
 const stamps = [];       // patches where the meadow is grazed short or cut to stubble
-if (real) {
+if (real && !real.region) {     // Leckhampton's own 19th-century dressing: courses from the course tool carry a region
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new V3(0, 1, 0), sc = new V3(), ps = new V3(), col = new THREE.Color();
   const open = (x, z) => Math.abs(x) < TS / 2 - 60 && Math.abs(z) < TS / 2 - 60 && !real.wood(x, z);
   const slopeAt = (x, z) => Math.hypot(demH(x + 10, z) - demH(x - 10, z), demH(x, z + 10) - demH(x, z - 10)) / 20;
@@ -1334,7 +1334,12 @@ function tick() {
 
   if (SCENERY === null) {
     // speed and distance come from bikeathome, where the trainer, the gears and the recording are
-    follower.step(dt, performance.now() / 1000);
+    const now = performance.now() / 1000;
+    follower.step(Math.min(1, now - (st.at || now)), now);   // real time, not the capped frame time: a slow machine must not fall behind
+    // The app shares this page's thread: frames this slow starve its engine, which steps at most half a second at a time.
+    st.frameGap = (st.frameGap || 0) * 0.9 + Math.min(5, now - (st.at || now)) * 0.1;
+    $('slow').hidden = !(st.frameGap > 0.25);
+    st.at = now;
     st.s = follower.s; st.v = follower.speedMs;
     const riding = latest && latest.status === 'riding';
     st.power += ((riding ? latest.powerW : 0) - st.power) * Math.min(1, dt * 3);

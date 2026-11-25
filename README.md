@@ -238,7 +238,7 @@ It writes two files next to the GPX:
   heart rate and everything else stay as they were. Load it in the app like any route.
 - **`my-ride.course.js`**: the road and a square of terrain around it, in the format
   [golden-hour-ride](https://github.com/jamiemarsland/golden-hour-ride)'s 3D renderer
-  loads. Nothing in this app reads it yet.
+  loads. The app's 3D view reads it: see below.
 
 The data source is picked by where the route is:
 
@@ -274,9 +274,38 @@ Worth knowing:
 - **The England server sometimes stalls.** Requests hang and then go through on a
   retry, so the tool retries, and a run there can take some minutes.
 
+## Riding in 3D
+
+Once a route is chosen, **Show 3D view** puts the ride in a landscape:
+[golden-hour-ride](https://github.com/jamiemarsland/golden-hour-ride)'s renderer, with
+your speed, distance, power, cadence and gear. **Load 3D course** takes the
+`my-ride.course.js` the course tool made from the same GPX, so you ride through the
+real terrain of that route. Without one you get an invented valley.
+
+The view follows the ride; it does not run one. The trainer, the virtual gears, holding
+a power, workouts, the heart rate ceiling and the recording all stay with the app, so a
+ride in 3D records and exports exactly like any other. Speed is the app's honest speed,
+not a game's. Keys pressed while the view has the focus still shift and set the power,
+and **Full screen** keeps the readout of power, speed, gradient, distance and gear.
+
+Worth knowing:
+
+- **It needs a graphics card worth the name.** The view shares the page with the ride
+  engine. On a computer too slow to draw it, the engine waits, and the ride can lose
+  distance. The view says so in red when that happens: hide it, or make the window
+  smaller.
+- **It is only loaded when opened.** Three.js and the textures (about 16 MB) are
+  fetched the first time you show it; the app without it stays as small as before.
+- **The landscape is still generic.** Real terrain, a real road and water at sea level,
+  but golden-hour-ride's English meadow rather than the place itself: no buildings,
+  trees or walls from the map yet.
+- **Click the view once for sound.** The browser allows wind and tyre noise only after
+  a click inside it.
+
 ## Self-hosting it
 
-Once built, the app is 140 KB of static files — no Node at run time, no backend, no
+Once built, the app is 140 KB of static files, plus the 3D view fetched only when it is
+opened — no Node at run time, no backend, no
 database, nothing kept on the server. The browser does all the work, including the
 Bluetooth. Hosting it just means you can open a bookmark and ride, with nothing
 installed on the riding machine.
@@ -347,7 +376,8 @@ obligation on either side.
 | `npm run check` | typecheck Svelte and TypeScript |
 | `npm run course -- <route.gpx>` | LiDAR heights for a route, see above |
 
-No runtime dependencies. GPX parsing uses the browser's `DOMParser`, TCX is built with
+No runtime dependencies in the app itself; the 3D view brings Three.js, bundled at build
+time rather than fetched from a CDN. GPX parsing uses the browser's `DOMParser`, TCX is built with
 template strings, the charts are hand-rolled SVG, and the Click's protobuf messages are
 read by about twenty lines of varint decoder.
 
@@ -359,10 +389,11 @@ gives 34.6 km/h on the flat, and coasting a 6% descent settles at 49.6 km/h.
 
 ## Credit
 
-The course tool is the exception to what follows: its National Grid conversion, its
-TIFF reader and its road-height method are ported from
-[golden-hour-ride](https://github.com/jamiemarsland/golden-hour-ride) (MIT, © 2026
-Jamie Marsland), and say so where they appear in `src/lib/course`.
+The course tool and the 3D view are the exception to what follows. The tool's National
+Grid conversion, TIFF reader and road-height method, and the whole 3D renderer in
+`src/ride3d`, come from [golden-hour-ride](https://github.com/jamiemarsland/golden-hour-ride)
+(MIT, © 2026 Jamie Marsland), with its licence alongside them. Its textures are from
+Poly Haven (CC0), and it runs on Three.js (MIT).
 
 Otherwise no source code here is copied from another project; what was used is factual. FTMS is
 an open Bluetooth SIG standard. The Zwift shifters' UUIDs, `RideOn` handshake and
