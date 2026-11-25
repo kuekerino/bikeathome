@@ -103,3 +103,20 @@ describe('Follower', () => {
     expect(f.s).toBeCloseTo(12.5, 0) // 980 + 13 × 2.5, round the loop
   })
 })
+
+describe('a road that is not the route', () => {
+  // The first real ride: a 72 km route, no course loaded, so the 2.9 km invented valley.
+  it('is ridden at true distance and true speed, not shrunk to fit', () => {
+    const valley = new Follower(2900, true, false)
+    expect(valley.place(1010, 72470)).toBe(1010)
+    expect(valley.place(3000, 72470)).toBeCloseTo(100)
+    // 12 seconds at 23.7 km/h, reported four times a second, as the engine does
+    const v = 23.7 / 3.6
+    for (let k = 0; k < 48; k++) {
+      valley.receive(riding(1000 + k * 0.25 * v, v, 72470), k * 0.25)
+      run(valley, k * 0.25, (k + 1) * 0.25)
+    }
+    // 79 m covered, where shrinking the route onto the valley managed 3
+    expect(valley.s).toBeCloseTo(1000 + 12 * v, 0)
+  })
+})

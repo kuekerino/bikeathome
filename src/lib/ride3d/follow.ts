@@ -34,15 +34,21 @@ export class Follower {
 
   readonly length: number
   readonly loop: boolean
+  readonly scaleToRoute: boolean
   private last: { s: number; rate: number; speedMs: number; at: number } | null = null
 
   /**
    * @param length Length of the drawn road, metres.
    * @param loop Whether the drawn road joins up, so position wraps instead of stopping at the end.
+   * @param scaleToRoute Whether the drawn road is the route itself, made from the same GPX. Only
+   *   then is route distance stretched to fit it. Any other road, such as the invented valley, is
+   *   ridden at true distance, round and round: stretching a 72 km route onto a 3 km loop made the
+   *   rider crawl along at a twenty-fifth of their speed.
    */
-  constructor(length: number, loop: boolean) {
+  constructor(length: number, loop: boolean, scaleToRoute = true) {
     this.length = length
     this.loop = loop
+    this.scaleToRoute = scaleToRoute
   }
 
   /**
@@ -52,12 +58,12 @@ export class Follower {
    * of the ride at the ends of the road.
    */
   place(distance: number, routeDistance: number): number {
-    const s = routeDistance > 0 ? (distance / routeDistance) * this.length : distance
+    const s = this.scaleToRoute && routeDistance > 0 ? (distance / routeDistance) * this.length : distance
     return this.normalise(s)
   }
 
   receive(ride: FollowedRide, now: number): void {
-    const scale = ride.routeDistance > 0 ? this.length / ride.routeDistance : 1
+    const scale = this.scaleToRoute && ride.routeDistance > 0 ? this.length / ride.routeDistance : 1
     const speedMs = ride.status === 'riding' ? Math.max(0, ride.speedMs) : 0
     const s = this.place(ride.distance, ride.routeDistance)
     const first = this.last === null

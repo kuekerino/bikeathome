@@ -1314,7 +1314,7 @@ addEventListener('pointerdown', startAudio); addEventListener('keydown', startAu
 const LANE = real && real.drive === 'right' ? 1.75 : -1.75, clock = new THREE.Clock();   // ride on the side the country drives on
 
 // bikeathome reports where the rider is four times a second; the follower fills in the frames between
-const follower = new Follower(LEN, CLOSED);
+const follower = new Follower(LEN, CLOSED, !!real);   // without the route's own course, ride the valley at true distance
 let latest = null;
 addEventListener('message', e => {
   if (e.origin !== location.origin || !e.data || e.data.type !== 'ride') return;
