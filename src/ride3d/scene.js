@@ -1408,6 +1408,10 @@ function tick() {
     $('h-di').textContent = (shown.distance / 1000).toFixed(2);
     $('h-gear-box').hidden = shown.gear == null;
     if (shown.gear != null) $('h-gear').textContent = shown.gear;
+    // Until the ride is under way nothing moves: say why, and how to start.
+    const note = !latest ? '' : latest.status === 'ready' ? 'Not started yet. Press Start ride, or the space bar.'
+      : latest.status === 'paused' ? 'Paused. Space bar to carry on.' : latest.status === 'finished' ? 'Ride finished.' : '';
+    $('state').hidden = !note; $('state').textContent = note;
     $('h-target-box').hidden = shown.targetPowerW == null;
     if (shown.targetPowerW != null) $('h-target').textContent = Math.round(shown.targetPowerW);
   }

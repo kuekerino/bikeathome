@@ -362,7 +362,14 @@
   <ConnectPanel {devices} note={browserNote} />
 
   {#if chosen}
-    <View3D {ride} {virtualShifting} onError={(message) => (error = message)} />
+    <View3D
+      {ride}
+      {virtualShifting}
+      onError={(message) => (error = message)}
+      onStart={startRide}
+      onPause={() => engine.pause()}
+      onResume={() => engine.resume()}
+    />
 
     <section id="ride" aria-label="Ride">
       <Dashboard {ride} {virtualShifting} />

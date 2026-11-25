@@ -42,6 +42,9 @@
   #slow { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 70%; padding: 14px 18px; border-radius: 12px;
     background: rgba(120, 20, 10, .85); font-size: 14px; line-height: 1.4; text-align: center; }
   #slow[hidden] { display: none; }
+  #state { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); padding: 12px 18px; border-radius: 12px;
+    background: rgba(20, 16, 12, .72); border: 1px solid rgba(255,255,255,.35); font-size: 16px; text-align: center; }
+  #state[hidden] { display: none; }
   body.clean { cursor: none; }
   #credit { position: fixed; right: 14px; bottom: 10px; font-size: 10px; letter-spacing: .04em; opacity: .7; text-shadow: 0 1px 6px rgba(0,0,0,.7); max-width: 46vw; text-align: right; }
   #credit { top: 12px; left: 14px; right: auto; bottom: auto; text-align: left; max-width: 34%; }
@@ -62,6 +65,7 @@
   <button id="clean" title="Hide everything on screen (H key). Press H, or click, to bring it back">Hide info</button>
 </div>
 <div id="credit"></div>
+<div id="state" role="status" hidden></div>
 <div id="slow" role="alert" hidden>This computer is struggling to draw the 3D view, and while it does, the ride can lose distance. Hide the 3D view, or make the window smaller.</div>
 <div id="loading">Building the course…</div>
 <script type="module" src="./src/ride3d/scene.js"></script>

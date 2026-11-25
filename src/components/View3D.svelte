@@ -8,9 +8,13 @@
     ride: RideSnapshot
     virtualShifting: boolean
     onError: (message: string) => void
+    /** The view pushes the ride's own buttons below the fold, so it carries the one that matters. */
+    onStart: () => void
+    onPause: () => void
+    onResume: () => void
   }
 
-  let { ride, virtualShifting, onError }: Props = $props()
+  let { ride, virtualShifting, onError, onStart, onPause, onResume }: Props = $props()
 
   let open = $state(false)
   // Raw: a course is a megabyte of terrain that is posted whole to the view,
@@ -66,6 +70,15 @@
 
 <section class="view3d" aria-label="3D view">
   <div class="bar">
+    {#if open}
+      {#if ride.status === 'riding'}
+        <button onclick={onPause}>Pause</button>
+      {:else if ride.status === 'paused'}
+        <button class="go" onclick={onResume}>Resume</button>
+      {:else}
+        <button class="go" onclick={onStart}>{ride.status === 'finished' ? 'Ride again' : 'Start ride'}</button>
+      {/if}
+    {/if}
     <button onclick={() => (open = !open)} aria-pressed={open}>
       {open ? 'Hide 3D view' : 'Show 3D view'}
     </button>
@@ -117,6 +130,12 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  .go {
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
   }
 
   .note,
