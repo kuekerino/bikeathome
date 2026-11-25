@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   courseScript,
+  CourseError,
+  readCourseScript,
   decodeDem,
   encodeDem,
   fillTerrain,
@@ -147,5 +149,41 @@ describe('mergeRevisits', () => {
     expect(merged.shared).toBe(0)
     const parallel = [...out, ...Array.from({ length: 201 }, (_, k) => ({ x: 1000 - k * 5, z: 25 }))]
     expect(mergeRevisits(parallel, parallel.map(() => 0), 5).shared).toBe(0)
+  })
+})
+
+describe('readCourseScript', () => {
+  const heights = new Float32Array(9).fill(5)
+  const course = {
+    name: 'Test',
+    size: 20,
+    cells: 2,
+    ...encodeDem(heights),
+    road: [
+      [0, 5, 0],
+      [5, 5, 0],
+    ],
+    credit: 'Heights: test',
+    loop: false,
+    region: 'spain',
+    drive: 'right',
+    centre: { lat: 39.7, lon: 3 },
+    length: 5,
+  } as Course
+
+  it('reads back what courseScript writes', () => {
+    expect(readCourseScript(courseScript('my-ride', course))).toEqual(course)
+  })
+
+  it("reads golden-hour-ride's own form", () => {
+    const text = `window.RIDE_COURSES = window.RIDE_COURSES || {};\nwindow.RIDE_COURSES.leckhampton = ${JSON.stringify(course)};\n`
+    expect(readCourseScript(text).name).toBe('Test')
+  })
+
+  it('refuses anything else, saying why', () => {
+    expect(() => readCourseScript('<gpx></gpx>')).toThrow(CourseError)
+    expect(() => readCourseScript('window.RIDE_COURSES["x"] = {broken')).toThrow(/damaged/)
+    expect(() => readCourseScript(courseScript('x', { ...course, cells: 3 }))).toThrow(/terrain does not match/)
+    expect(() => readCourseScript(courseScript('x', { ...course, road: [[0, 0]] } as unknown as Course))).toThrow(/road/)
   })
 })

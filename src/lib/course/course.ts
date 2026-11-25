@@ -278,6 +278,49 @@ export function roadLine(points: readonly Local[], heights: readonly number[], l
   return out
 }
 
+export class CourseError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CourseError'
+  }
+}
+
+/**
+ * Reads a course file back: the tool's own output, or golden-hour-ride's
+ * Leckhampton file, which assigns with a dot rather than brackets. Parsed as
+ * JSON, never run, and checked, because a broken course fails deep inside
+ * the renderer with nothing to say why.
+ */
+export function readCourseScript(text: string): Course {
+  const assignment = /window\.RIDE_COURSES(?:\[[^\]]*\]|\.[\w$]+)\s*=\s*\{/.exec(text)
+  if (!assignment) throw new CourseError('This is not a course file. Make one from a GPX with the course tool.')
+  const start = assignment.index + assignment[0].length - 1
+  const end = text.lastIndexOf('}')
+  let course: Course
+  try {
+    course = JSON.parse(text.slice(start, end + 1)) as Course
+  } catch {
+    throw new CourseError('The course file is damaged: its data does not read.')
+  }
+
+  const finite = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+  if (!finite(course.size) || course.size <= 0 || !Number.isInteger(course.cells) || course.cells < 1) {
+    throw new CourseError('The course file has no usable terrain size.')
+  }
+  if (!finite(course.demMin) || !finite(course.demMax) || typeof course.dem !== 'string') {
+    throw new CourseError('The course file has no terrain heights.')
+  }
+  const expectedBytes = (course.cells + 1) ** 2 * 2
+  if (Math.floor((course.dem.length * 3) / 4) - (course.dem.endsWith('==') ? 2 : course.dem.endsWith('=') ? 1 : 0) !== expectedBytes) {
+    throw new CourseError('The course file\'s terrain does not match its size.')
+  }
+  if (!Array.isArray(course.road) || course.road.length < 2 || !course.road.every((p) => Array.isArray(p) && p.length === 3 && p.every(finite))) {
+    throw new CourseError('The course file has no usable road.')
+  }
+  if (typeof course.credit !== 'string') course.credit = ''
+  return course
+}
+
 /** The file golden-hour-ride loads with a `<script>` tag. */
 export function courseScript(id: string, course: Course): string {
   return (

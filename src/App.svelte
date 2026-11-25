@@ -15,6 +15,7 @@
   import RouteMap from './components/RouteMap.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
   import WorkoutPanel from './components/WorkoutPanel.svelte'
+  import View3D from './components/View3D.svelte'
   import { announcementFor, describeStatus } from './lib/a11y/announce'
   import { applyAppearance, systemPrefersDark } from './lib/appearance'
   import { clearRides, deleteRide, listRides, storageEstimate } from './lib/history/store'
@@ -361,6 +362,8 @@
   <ConnectPanel {devices} note={browserNote} />
 
   {#if chosen}
+    <View3D {ride} {virtualShifting} onError={(message) => (error = message)} />
+
     <section id="ride" aria-label="Ride">
       <Dashboard {ride} {virtualShifting} />
     </section>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>bikeathome 3D</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0a09; overflow: hidden; }
+  body { font: 500 14px/1.2 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: #fff; }
+  canvas#c { display: block; width: 100vw; height: 100vh; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #0b0a09;
+    letter-spacing: .18em; text-transform: uppercase; font-size: 12px; color: #cdb99a; transition: opacity .8s; }
+  #hud { position: fixed; left: 30px; bottom: 26px; display: flex; gap: 26px;
+    text-shadow: 0 1px 12px rgba(0,0,0,.55); font-variant-numeric: tabular-nums; pointer-events: none; }
+  #hud div { text-align: left; min-width: 70px; }
+  #hud b { display: block; font-size: 30px; font-weight: 300; letter-spacing: -.01em; }
+  #hud span { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; opacity: .75; }
+  #ctl { position: fixed; top: 18px; right: 18px; left: 18px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px 12px;
+    font-size: 11px; letter-spacing: .08em; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+  #ctl input { width: 150px; accent-color: #ffcf8f; }
+  #ctl button { font: inherit; color: #fff; background: rgba(20,16,12,.45); border: 1px solid rgba(255,255,255,.35);
+    border-radius: 999px; padding: 7px 13px; cursor: pointer; backdrop-filter: blur(6px); }
+  #ctl button:hover { background: rgba(20,16,12,.7); }
+  #ctl button.on { background: rgba(255,255,255,.3); border-color: #fff; }
+  #wx { display: flex; gap: 4px; }
+  #hills { display: flex; gap: 4px; align-items: center; }
+  #hills button { min-width: 30px; padding-left: 0; padding-right: 0; }
+  #hval { min-width: 74px; text-align: center; }
+  #log { position: fixed; top: 64px; right: 18px; width: 270px; max-height: 70vh; overflow: auto; padding: 14px 16px; border-radius: 14px;
+    background: rgba(20,16,12,.72); border: 1px solid rgba(255,255,255,.3); backdrop-filter: blur(8px); font-size: 13px; color: #fff; }
+  #log h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
+  #log .tot { display: flex; gap: 18px; margin-bottom: 12px; }
+  #log .tot b { display: block; font-size: 22px; font-weight: 300; font-variant-numeric: tabular-nums; }
+  #log .tot span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+  #log table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  #log td { padding: 4px 0; border-top: 1px solid rgba(255,255,255,.14); }
+  #log td:last-child { text-align: right; }
+  #log .muted { opacity: .65; }
+  #log button { margin-top: 12px; font: inherit; font-size: 11px; color: #fff; background: none; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+  body.clean #hud, body.clean #ctl, body.clean #credit { display: none; }
+  #hud [hidden] { display: none; }
+  body.clean { cursor: none; }
+  #credit { position: fixed; right: 14px; bottom: 10px; font-size: 10px; letter-spacing: .04em; opacity: .7; text-shadow: 0 1px 6px rgba(0,0,0,.7); max-width: 46vw; text-align: right; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div><b id="h-pw">0</b><span>watts</span></div>
+  <div><b id="h-sp">0.0</b><span>km/h</span></div>
+  <div><b id="h-gr">0.0</b><span>gradient %</span></div>
+  <div><b id="h-di">0.00</b><span>km</span></div>
+  <div id="h-gear-box" hidden><b id="h-gear">–</b><span>gear</span></div>
+  <div id="h-target-box" hidden><b id="h-target">–</b><span>target W</span></div>
+</div>
+<div id="ctl">
+  <span id="wx"><button data-w="snow">Snow</button><button data-w="golden" class="on">Golden</button><button data-w="overcast">Overcast</button><button data-w="rain">Rain</button><button data-w="mist">Mist</button><button data-w="starry">Starry</button></span>
+  <button id="clean" title="Hide everything on screen (H key). Press H, or click, to bring it back">Hide info</button>
+</div>
+<div id="credit"></div>
+<div id="loading">Building the course…</div>
+<script type="module" src="./src/ride3d/scene.js"></script>
+</body>
+</html>
