@@ -829,3 +829,26 @@ describe('a workout driving the power', () => {
     expect(engine.snapshot().targetPowerW).toBeNull()
   })
 })
+
+describe('hill feel', () => {
+  // A climb felt at three quarters: the trainer is asked for less, and the
+  // rider still goes exactly as fast as the real gradient allows.
+  it('eases the climb at the trainer and nowhere else', () => {
+    const ride = (hillFeelPct: number) => {
+      const { engine, trainer } = setup(climbRoute(5000, 6))
+      engine.configure({ drivetrain: { ...DEFAULT_DRIVETRAIN, hillFeelPct } })
+      engine.start()
+      trainer.send({ powerW: 220 })
+      new Clock(engine).advance(60)
+      return engine.snapshot()
+    }
+    const full = ride(100)
+    const eased = ride(75)
+
+    expect(eased.trainerGradient).toBeLessThan(full.trainerGradient)
+    expect(eased.trainerGradient).toBeGreaterThan(0)
+    expect(eased.speedMs).toBeCloseTo(full.speedMs, 9)
+    expect(eased.distance).toBeCloseTo(full.distance, 9)
+    expect(eased.routeGradient).toBe(full.routeGradient)
+  })
+})

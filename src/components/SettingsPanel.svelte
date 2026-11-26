@@ -81,6 +81,26 @@
           it right keeps the middle of the block feeling neutral.
         </p>
       {/if}
+
+      <label>
+        Hill feel
+        <span class="field">
+          <input
+            type="number"
+            min="25"
+            max="100"
+            step="5"
+            value={settings.drivetrain.hillFeelPct}
+            onchange={(e) => drivetrain('hillFeelPct', Number(e.currentTarget.value))}
+          />
+          <span class="unit">%</span>
+        </span>
+      </label>
+      <p class="hint">
+        How much of each climb the trainer makes you feel. Outside, momentum carries you over a
+        short rise; indoors it cannot, so 75% often feels closer to the road. Speed still follows
+        the real gradient.
+      </p>
     </fieldset>
 
     <fieldset>

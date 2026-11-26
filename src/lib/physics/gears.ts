@@ -33,12 +33,31 @@ export interface DrivetrainSettings {
   chainringTeeth: number
   /** Teeth on the fitted cog — 14 for the Zwift Cog. */
   cogTeeth: number
+  /**
+   * How much of each climb the trainer makes the rider feel, in percent.
+   * Outside, momentum carries a rider over a short rise they barely notice;
+   * on a trainer every slope reaches the legs at once, so the full gradient
+   * can feel like a wall. Only the resistance changes: speed still comes from
+   * the real gradient, so the ride stays honest.
+   */
+  hillFeelPct: number
 }
 
 export const DEFAULT_DRIVETRAIN: DrivetrainSettings = {
   mode: 'virtual',
   chainringTeeth: 34,
   cogTeeth: 14,
+  hillFeelPct: 100,
+}
+
+/** Below a quarter, a climb is no longer a climb. */
+export const HILL_FEEL_LIMITS = { min: 25, max: 100 } as const
+
+/** The share of each climb to feel, as a fraction. Anything unusable reads as the whole climb. */
+export function hillFeel(drivetrain: DrivetrainSettings): number {
+  const pct = drivetrain.hillFeelPct
+  if (!Number.isFinite(pct)) return 1
+  return Math.min(HILL_FEEL_LIMITS.max, Math.max(HILL_FEEL_LIMITS.min, pct)) / 100
 }
 
 /** The ratio the bike is physically in, which virtual gears are measured against. */

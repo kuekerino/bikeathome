@@ -196,14 +196,32 @@ added.
 Climbing, a harder gear raises the gradient sent to the trainer. Descending it lowers
 it *towards* zero, restoring something to push against instead of spinning out.
 
+Two things change what the legs meet, and only that; speed is always worked out from the
+real road:
+
+- **Hill feel**, under **Rider and drivetrain**, sets how much of each climb the trainer
+  makes you feel, from 25 to 100%. Outside, momentum carries you over a short rise you
+  barely notice; on a trainer every slope reaches the legs at once, so the full gradient
+  can feel like a wall. 75% is a good place to start. Level road and descents are left as
+  they are.
+- **Descents never leave the pedals empty.** When gravity outweighs the air and the
+  tyres, the honest force is negative, and a trainer cannot push. Instead it is asked for
+  half of what your speed would cost on level road, in your gear. On the road every pedal
+  stroke has to accelerate you and the bike, which a trainer's flywheel cannot imitate;
+  this stands in for it.
+
 The virtual gears are the same 24 ratios Zwift uses, measured against whatever
 chainring and cog your bike is actually in, so the middle of the block feels neutral.
 
 ## Things worth knowing
 
-- **The trainer cannot push.** On a steep descent it is already at zero resistance, so
-  shifting up is the only way to get anything to press against. The app still moves you
-  at proper descent speed either way.
+- **The trainer cannot push.** Downhill it is given something to press against instead
+  (see above), and a harder gear makes that more. The app still moves you at proper
+  descent speed either way.
+- **Get the chainring right.** Virtual gears are measured against the gear the bike is
+  really in. With the default of 34 teeth on a bike whose chain sits on a 50, every
+  virtual gear is half as tall again as its number says, and an easy ride happens in the
+  lowest gears with nothing left at the top.
 - **The Kickr Core 2 tops out around 16% simulated gradient.** Beyond that — a steep
   climb in a very tall virtual gear — the trainer clips, and the highest gears stop
   feeling different from one another.

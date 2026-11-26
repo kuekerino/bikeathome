@@ -14,7 +14,7 @@ import {
 } from './appearance'
 import { DEFAULT_BINDINGS, sanitizeBindings, type Bindings } from './controls/bindings'
 import { DEFAULT_RIDER, type RiderSettings } from './physics/constants'
-import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from './physics/gears'
+import { DEFAULT_DRIVETRAIN, HILL_FEEL_LIMITS, type DrivetrainSettings } from './physics/gears'
 import { DEFAULT_HEART_RATE_CAP, type HeartRateCapSettings } from './ride/heartRateCap'
 
 const STORAGE_KEY = 'bikeathome.settings.v1'
@@ -52,6 +52,7 @@ const LIMITS = {
   crr: [0.001, 0.02],
   cda: [0.15, 1.2],
   teeth: [8, 60],
+  hillFeelPct: [HILL_FEEL_LIMITS.min, HILL_FEEL_LIMITS.max],
 } as const
 
 export function sanitizeSettings(raw: unknown): AppSettings {
@@ -77,6 +78,8 @@ export function sanitizeSettings(raw: unknown): AppSettings {
         LIMITS.teeth,
       ),
       cogTeeth: integer(drivetrain.cogTeeth, DEFAULT_DRIVETRAIN.cogTeeth, LIMITS.teeth),
+      // Settings saved before this existed have none, and get the whole climb, as before.
+      hillFeelPct: integer(drivetrain.hillFeelPct, DEFAULT_DRIVETRAIN.hillFeelPct, LIMITS.hillFeelPct),
     },
     heartRateCap: sanitizeHeartRateCap(input.heartRateCap),
     appearance: sanitizeAppearance(input.appearance),

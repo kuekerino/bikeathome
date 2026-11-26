@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  hillFeel,
   baselineRatio,
   clampGear,
   DEFAULT_DRIVETRAIN,
@@ -96,5 +97,15 @@ describe('gearRatio', () => {
   it('returns the absolute ratio and clamps out-of-range gears', () => {
     expect(gearRatio(1)).toBe(0.75)
     expect(gearRatio(99)).toBe(5.49)
+  })
+})
+
+describe('hillFeel', () => {
+  it('is a fraction of the whole climb, kept between a quarter and all of it', () => {
+    expect(hillFeel({ ...DEFAULT_DRIVETRAIN, hillFeelPct: 75 })).toBe(0.75)
+    expect(hillFeel({ ...DEFAULT_DRIVETRAIN, hillFeelPct: 5 })).toBe(0.25)
+    expect(hillFeel({ ...DEFAULT_DRIVETRAIN, hillFeelPct: 140 })).toBe(1)
+    expect(hillFeel({ ...DEFAULT_DRIVETRAIN, hillFeelPct: Number.NaN })).toBe(1)
+    expect(hillFeel(DEFAULT_DRIVETRAIN)).toBe(1)
   })
 })

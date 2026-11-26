@@ -71,15 +71,40 @@ export function adjustedGradient(
   speedMs: number,
   relativeRatio: number,
   rider: RiderSettings,
+  hillFeel = 1,
 ): number {
-  const { total } = forcesAt(gradientPct, speedMs, rider)
+  // Climbs can be felt at less than their full steepness. Descents are left
+  // alone: the floor below takes care of them.
+  const felt = gradientPct > 0 ? gradientPct * hillFeel : gradientPct
+  const { total } = forcesAt(felt, speedMs, rider)
 
   // Uphill the gear multiplies the load; downhill it divides it, so a harder
   // gear gives something to push against instead of spinning out.
   const geared = total >= 0 ? total * relativeRatio : total / relativeRatio
 
-  return forceToGradient(geared, rider)
+  // Never less than a share of what the same speed costs on level road, in
+  // this gear. See DESCENT_FLOOR.
+  const floor = forcesAt(0, speedMs, rider).total * DESCENT_FLOOR * relativeRatio
+
+  return forceToGradient(Math.max(geared, floor), rider)
 }
+
+/**
+ * The least the trainer is asked for, as a share of what the rider's speed
+ * would cost on level road.
+ *
+ * Downhill, gravity can outweigh the air and the tyres, and the honest force
+ * is negative. A trainer cannot push, so it drops to nothing, and the pedals
+ * run empty in every gear: the first real ride on a descent found exactly
+ * that. On the road the pedals are never empty, because every stroke has to
+ * accelerate rider and bike, some 80 kg, which a trainer's flywheel cannot
+ * imitate. Half of the level-road cost stands in for that: enough to push
+ * against, rising with speed as it would outside, and scaled by the gear so
+ * shifting up still bites. Climbs and level road are untouched, and speed is
+ * worked out from the real forces either way, so the ride stays honest; only
+ * what the legs meet changes.
+ */
+export const DESCENT_FLOOR = 0.5
 
 /**
  * The slope that asks a trainer for this force, given it adds nothing of its

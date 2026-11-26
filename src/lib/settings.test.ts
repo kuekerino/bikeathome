@@ -18,7 +18,17 @@ describe('sanitizeSettings', () => {
       mode: 'cassette',
       chainringTeeth: 50,
       cogTeeth: 11,
+      hillFeelPct: 100,
     })
+  })
+
+  it('keeps a hill feel within reason, and gives settings from before it the whole climb', () => {
+    const feel = (hillFeelPct: unknown) => sanitizeSettings({ drivetrain: { hillFeelPct } }).drivetrain.hillFeelPct
+    expect(feel(75)).toBe(75)
+    expect(feel(10)).toBe(25)
+    expect(feel(150)).toBe(100)
+    expect(feel('steep')).toBe(100)
+    expect(sanitizeSettings({ drivetrain: { chainringTeeth: 50 } }).drivetrain.hillFeelPct).toBe(100)
   })
 
   it('replaces missing fields rather than dropping them', () => {

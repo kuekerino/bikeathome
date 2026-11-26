@@ -18,6 +18,7 @@ import {
   DEFAULT_DRIVETRAIN,
   DEFAULT_GEAR,
   gearRatio,
+  hillFeel,
   relativeRatio,
   shiftGear,
   type DrivetrainSettings,
@@ -557,6 +558,7 @@ export class RideEngine {
       this.motion.speed,
       relativeRatio(this.gear, this.drivetrain),
       this.rider,
+      hillFeel(this.drivetrain),
     )
   }
 
