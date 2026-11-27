@@ -1159,7 +1159,7 @@ addEventListener('keydown', e => { const n = ['golden', 'overcast', 'rain', 'mis
 const rig = new THREE.Group();
 rig.position.set(0, -0.33, -0.5);
 camera.add(rig);
-const [huC, huG] = canvas2d(128, 224);
+const [huC, huG] = canvas2d(256, 448); huG.scale(2, 2);      // drawn at double resolution: four numbers on a small screen
 const huTex = new THREE.CanvasTexture(huC); huTex.colorSpace = THREE.SRGBColorSpace;
 {
   const half = [[.205, -.135, .05], [.21, -.13, -.05], [.21, -.07, -.105], [.205, -.005, -.085], [.19, 0, -.02], [.14, 0, 0], [0, 0, 0]];
@@ -1178,14 +1178,18 @@ const huTex = new THREE.CanvasTexture(huC); huTex.colorSpace = THREE.SRGBColorSp
   const tyre = new THREE.Mesh(new THREE.TorusGeometry(0.335, 0.014, 10, 72), tape); tyre.rotation.y = Math.PI / 2; tyre.position.set(0, -0.66, -0.12); rig.add(tyre);
   rig.traverse(o => { if (o.isMesh && o !== screen) o.receiveShadow = true; });
 }
-function drawHeadUnit(kmh, w) {
+function drawHeadUnit(kmh, w, rpm, bpm) {
   huG.fillStyle = '#d9dccf'; huG.fillRect(0, 0, 128, 224);
   huG.fillStyle = '#16181a'; huG.textAlign = 'center';
-  huG.font = '600 58px Helvetica, Arial, sans-serif'; huG.fillText(kmh.toFixed(0), 64, 82);
-  huG.font = '600 13px Helvetica, Arial, sans-serif'; huG.fillText('KM/H', 64, 104);
-  huG.fillRect(14, 122, 100, 2);
-  huG.font = '600 40px Helvetica, Arial, sans-serif'; huG.fillText(w.toFixed(0), 64, 176);
-  huG.font = '600 13px Helvetica, Arial, sans-serif'; huG.fillText('WATTS', 64, 198);
+  const value = (text, x, y, size) => { huG.font = `600 ${size}px Helvetica, Arial, sans-serif`; huG.fillText(text, x, y); };
+  const label = (text, x, y) => { huG.font = '600 11px Helvetica, Arial, sans-serif'; huG.fillText(text, x, y); };
+  const shown = v => v == null || !isFinite(v) ? '–' : Math.round(v).toString();   // a dash with no strap or no cadence
+  value(shown(kmh), 64, 56, 50); label('KM/H', 64, 72);
+  huG.fillRect(10, 82, 108, 2);
+  value(shown(w), 64, 124, 36); label('WATTS', 64, 140);
+  huG.fillRect(10, 150, 108, 2); huG.fillRect(63, 158, 2, 56);
+  value(shown(rpm), 34, 192, 26); label('RPM', 34, 208);
+  value(shown(bpm), 94, 192, 26); label('BPM', 94, 208);
   huTex.needsUpdate = true;
 }
 
@@ -1400,7 +1404,7 @@ function tick() {
   huT -= dt;
   if (huT <= 0) {
     huT = 0.25;
-    drawHeadUnit(st.v * 3.6, st.power);
+    drawHeadUnit(st.v * 3.6, st.power, latest ? latest.cadenceRpm : null, latest ? latest.heartRateBpm : null);
     const shown = latest || { powerW: st.power, gradient: grade, distance: st.dist, gear: null, targetPowerW: null };
     $('h-pw').textContent = shown.powerW.toFixed(0);
     $('h-sp').textContent = (st.v * 3.6).toFixed(1);
