@@ -225,10 +225,19 @@ export function buildGraph(input: readonly OsmWay[], options: BuildOptions = DEF
     roundaboutWays.add(e.ways[0]!)
   }
   roundabouts = roundaboutWays.size
+  // Only real junctions merge: three or more roads at both ends. A short piece
+  // between two ordinary points is just road, mapped as a way of its own, and
+  // often a bridge: the 13 m bridge at Sa Calobra's knot is one.
+  const junctionDegree = new Map<number, number>()
+  for (const e of edges) {
+    if (e.roundabout) continue
+    for (const id of [uf.find(e.a), uf.find(e.b)]) junctionDegree.set(id, (junctionDegree.get(id) ?? 0) + 1)
+  }
+  const isRealJunction = (id: number) => (junctionDegree.get(uf.find(id)) ?? 0) >= 3
   let merged = 0
   for (const e of edges) {
     if (e.roundabout || e.a === e.b) continue
-    if (lineLength(e.points) < options.mergeM && uf.find(e.a) !== uf.find(e.b)) {
+    if (lineLength(e.points) < options.mergeM && uf.find(e.a) !== uf.find(e.b) && isRealJunction(e.a) && isRealJunction(e.b)) {
       uf.union(e.a, e.b)
       merged++
     }
@@ -404,7 +413,17 @@ function reverse(e: RawEdge): RawEdge | null {
 }
 
 function pickName(x: RawEdge, y: RawEdge): string | null {
-  if (!x.name) return y.name
-  if (!y.name) return x.name
-  return lineLength(x.points) >= lineLength(y.points) ? x.name : y.name
+  // A bridge's or a tunnel's own name (Pont de Turixant, Túnel de Monnàber) is not the road's.
+  const own = (e: RawEdge) => (wholly(e) ? null : e.name)
+  const nx = own(x)
+  const ny = own(y)
+  if (!nx) return ny
+  if (!ny) return nx
+  return lineLength(x.points) >= lineLength(y.points) ? nx : ny
+}
+
+/** The whole piece is a bridge or a tunnel. */
+function wholly(e: RawEdge): boolean {
+  const length = lineLength(e.points)
+  return e.structures.some((s) => s.from <= 0.5 && s.to >= length - 0.5)
 }

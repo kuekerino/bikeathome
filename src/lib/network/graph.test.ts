@@ -79,6 +79,19 @@ describe('buildGraph', () => {
     expect(graph.nodes).toHaveLength(5) // 1, 3, 4, 21 and the merged junction
   })
 
+  it('keeps a short bridge mapped as a way of its own, and does not merge it away', () => {
+    // a road mapped as three ways, the middle one a 13 m bridge, as at Sa Calobra's knot
+    const knot: Record<number, [number, number]> = { 1: [0, 0], 2: [1000, 0], 50: [1013, 0], 3: [2000, 0], 4: [1000, 1000] }
+    const { graph, report } = buildGraph(
+      [way([1, 2], knot), way([2, 50], knot, { bridge: 'yes' }), way([50, 3], knot), way([1, 4], knot), way([4, 3], knot)],
+      KEEP_ALL,
+    )
+    expect(report.merged).toBe(0)
+    const bridged = graph.edges.filter((e) => e.structures.length > 0)
+    expect(bridged).toHaveLength(1)
+    expect(bridged[0]!.structures[0]!.to - bridged[0]!.structures[0]!.from).toBeCloseTo(13, 0)
+  })
+
   it('drops short dead ends and keeps long ones that lead somewhere worth riding', () => {
     const spurs: Record<number, [number, number]> = { ...at, 30: [1000, -200], 31: [2000, 3000], 32: [3000, -1000] }
     const ways = [
@@ -124,5 +137,25 @@ describe('buildGraph', () => {
   it('ignores ways a bicycle may not use', () => {
     const { graph } = buildGraph([way([1, 2, 3], at), way([2, 4], at, { highway: 'motorway' })], KEEP_ALL)
     expect(graph.edges).toHaveLength(1)
+  })
+})
+
+describe('names', () => {
+  it("does not give a whole road its bridge's name", () => {
+    const at: Record<number, [number, number]> = { 1: [0, 0], 2: [1000, 0], 50: [1013, 0], 3: [2000, 0], 4: [1000, 1000] }
+    const way2 = (id: number, nodes: number[], tags: Record<string, string>): OsmWay => ({ id, tags: { highway: 'tertiary', ...tags }, nodes, geometry: nodes.map((n) => point(...at[n]!)) })
+    const { graph } = buildGraph(
+      [
+        way2(901, [1, 2], { ref: 'Ma-2141' }),
+        way2(902, [2, 50], { ref: 'Ma-2141', bridge: 'yes', name: 'Pont de Turixant' }),
+        way2(903, [50, 3], { ref: 'Ma-2141' }),
+        way2(904, [1, 4], {}),
+        way2(905, [4, 3], {}),
+      ],
+      KEEP_ALL,
+    )
+    const road = graph.edges.find((e) => e.ref === 'Ma-2141')!
+    expect(road.structures).toHaveLength(1)
+    expect(road.name).toBeNull()
   })
 })
