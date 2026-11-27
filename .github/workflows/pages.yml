@@ -9,6 +9,15 @@
 #
 # The site lands on a project subpath (/bikeathome/). That works because the
 # Vite build uses a relative base, so nothing here needs to know the URL.
+#
+# Building and publishing are two jobs, and publishing tries twice. Twice in
+# a week, with the 3D view's textures making the upload 16 MB, the publish
+# step ran straight after a successful upload and found no artifact at all:
+# "Found 0 artifact(s)". GitHub lists a new artifact a little after it has
+# taken it. Re-running the same run cannot help, because the late artifact
+# then turns up alongside the new one and the action refuses two; only a fresh
+# run worked. A second job starts on a fresh runner, which buys that little
+# while, and if it is still not enough the second attempt waits a minute more.
 name: Deploy
 
 on:
@@ -26,11 +35,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,5 +49,21 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
-      - id: deployment
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.first.outputs.page_url || steps.second.outputs.page_url }}
+    steps:
+      - id: first
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - if: steps.first.outcome == 'failure'
+        run: |
+          echo "The artifact was not listed yet. Waiting a minute, then trying once more."
+          sleep 60
+      - id: second
+        if: steps.first.outcome == 'failure'
         uses: actions/deploy-pages@v4
