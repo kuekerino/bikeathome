@@ -12,6 +12,7 @@
     onEnd: () => void
     onShift: (direction: 1 | -1) => void
     onExport: () => void
+    onExportCsv: () => void
   }
 
   let {
@@ -25,6 +26,7 @@
     onEnd,
     onShift,
     onExport,
+    onExportCsv,
   }: Props = $props()
 </script>
 
@@ -43,6 +45,14 @@
 
   <button onclick={onExport} disabled={!canExport} title="Download this ride as a TCX file">
     Export
+  </button>
+
+  <button
+    onclick={onExportCsv}
+    disabled={!canExport}
+    title="Download every second of this ride as a CSV, with gears and trainer settings"
+  >
+    CSV
   </button>
 
   <span class="spacer"></span>

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RideSnapshot, RideStatus } from './engine'
+import { DEFAULT_RIDER } from '../physics/constants'
+import { DEFAULT_DRIVETRAIN } from '../physics/gears'
 import { RideRecorder } from './recorder'
 
 function snapshot(overrides: Partial<RideSnapshot> = {}): RideSnapshot {
@@ -18,6 +20,7 @@ function snapshot(overrides: Partial<RideSnapshot> = {}): RideSnapshot {
     seenButtons: [],
     workout: null,
     cadenceRpm: 0,
+    trainerSpeedKmh: null,
     gear: 12,
     gearRatio: 1,
     relativeRatio: 1,
@@ -127,5 +130,59 @@ describe('RideRecorder', () => {
       cadenceRpm: 85,
       speedMs: 8.3,
     })
+  })
+
+  it('keeps no trace when it is not told the settings', () => {
+    const recorder = new RideRecorder()
+    recorder.record(riding('riding'), 1_000)
+    expect(recorder.samples[0]).not.toHaveProperty('trace')
+  })
+
+  it('traces the gear, what the trainer was asked for, and the settings behind it', () => {
+    const recorder = new RideRecorder()
+    recorder.record(
+      riding('riding', {
+        gear: 1,
+        gearRatio: 0.75,
+        relativeRatio: 0.75 / (50 / 14),
+        routeGradient: 6.7,
+        trainerGradient: 1.4,
+        heldPowerW: null,
+        trainerSpeedKmh: 35.9,
+      }),
+      1_000,
+      {
+        rider: { ...DEFAULT_RIDER, massKg: 82 },
+        drivetrain: { ...DEFAULT_DRIVETRAIN, chainringTeeth: 50, hillFeelPct: 75 },
+      },
+    )
+
+    expect(recorder.samples[0]!.trace).toEqual({
+      gear: 1,
+      gearRatio: 0.75,
+      relativeRatio: 0.75 / (50 / 14),
+      routeGradientPct: 6.7,
+      trainerGradientPct: 1.4,
+      heldPowerW: null,
+      trainerSpeedKmh: 35.9,
+      mode: 'virtual',
+      chainringTeeth: 50,
+      cogTeeth: 14,
+      hillFeelPct: 75,
+      massKg: 82,
+      crr: DEFAULT_RIDER.crr,
+      cda: DEFAULT_RIDER.cda,
+    })
+  })
+
+  it('takes the settings as they are at each second, so a change mid-ride shows', () => {
+    const recorder = new RideRecorder()
+    const rider = DEFAULT_RIDER
+    recorder.record(riding('riding'), 1_000, { rider, drivetrain: DEFAULT_DRIVETRAIN })
+    recorder.record(riding('riding'), 2_000, {
+      rider,
+      drivetrain: { ...DEFAULT_DRIVETRAIN, chainringTeeth: 50 },
+    })
+    expect(recorder.samples.map((sample) => sample.trace?.chainringTeeth)).toEqual([34, 50])
   })
 })

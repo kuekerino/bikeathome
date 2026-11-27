@@ -70,6 +70,12 @@ export interface RideSnapshot {
   speedMs: number
   powerW: number
   cadenceRpm: number
+  /**
+   * The trainer's own wheel speed, or `null` when it reports none. Not the
+   * ride's speed, which comes from power and the route: with a single cog the
+   * wheel turns with the cadence, whatever the road is doing.
+   */
+  trainerSpeedKmh: number | null
   gear: number
   gearRatio: number
   relativeRatio: number
@@ -487,6 +493,7 @@ export class RideEngine {
       speedMs: this.motion.speed,
       powerW: this.latest.powerW ?? 0,
       cadenceRpm: this.latest.cadenceRpm ?? 0,
+      trainerSpeedKmh: this.latest.speedKmh ?? null,
       gear: this.gear,
       gearRatio: gearRatio(this.gear),
       relativeRatio: relativeRatio(this.gear, this.drivetrain),

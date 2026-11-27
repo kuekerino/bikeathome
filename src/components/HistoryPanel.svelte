@@ -10,13 +10,15 @@
     storage: { usedMb: number; quotaMb: number } | null
     busy: boolean
     onExport: (ride: RideSummary) => void
+    onExportCsv: (ride: RideSummary) => void
     onRepeat: (ride: RideSummary) => void
     onDelete: (ride: RideSummary) => void
     onClear: () => void
     onRefresh: () => void
   }
 
-  let { rides, storage, busy, onExport, onRepeat, onDelete, onClear, onRefresh }: Props = $props()
+  let { rides, storage, busy, onExport, onExportCsv, onRepeat, onDelete, onClear, onRefresh }: Props =
+    $props()
 
   let confirming = $state(false)
 </script>
@@ -56,6 +58,13 @@
 
             <div class="actions">
               <button onclick={() => onExport(ride)} disabled={busy}>Export</button>
+              <button
+                onclick={() => onExportCsv(ride)}
+                disabled={busy}
+                title="Every second of this ride as a CSV, with gears and trainer settings"
+              >
+                CSV
+              </button>
               {#if ride.workoutName}
                 <button onclick={() => onRepeat(ride)} disabled={busy}>Ride again</button>
               {/if}

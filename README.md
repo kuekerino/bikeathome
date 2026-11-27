@@ -162,6 +162,20 @@ also asks the browser to keep the data rather than treat it as disposable cache.
 
 It is still per-browser and still never uploaded. Export anything you would mind losing.
 
+### What the trainer was told
+
+**CSV**, next to **Export** during a ride and in **Past rides**, writes every second of a
+ride as a table with what a TCX has no place for: the gear, the route's gradient, the
+gradient the trainer was asked to simulate, the power it was told to hold, the trainer's
+own wheel speed, and the chainring, cog, hill feel, weight and drag the app was set to
+at that second.
+
+It is for working out why a ride felt the way it did. "The climbs were too heavy in the
+lowest gear" can then be checked against the gear actually ridden, instead of guessing
+the gear back out of the watts. The wheel speed against the cadence also shows which
+chainring the chain was really on. Rides recorded before this was kept still export,
+with those columns empty. The TCX is unchanged, so uploading it works as before.
+
 ### Pairing once instead of every time
 
 Enable `chrome://flags/#enable-web-bluetooth-new-permissions-backend` and devices you

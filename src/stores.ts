@@ -19,6 +19,7 @@ import { parseZwo } from './lib/workout/zwo'
 import { Route } from './lib/gpx/route'
 import { RideEngine } from './lib/ride/engine'
 import { RideRecorder } from './lib/ride/recorder'
+import { buildCsv, csvFilename } from './lib/ride/csv'
 import { buildTcx, tcxFilename } from './lib/ride/tcx'
 import { loadSettings, saveSettings, type AppSettings } from './lib/settings'
 
@@ -59,7 +60,7 @@ export function startSession(): () => void {
     // end up in a file other software has to read.
     engine.tick(performance.now())
     const snapshot = engine.snapshot()
-    recorder.record(snapshot, Date.now())
+    recorder.record(snapshot, Date.now(), { rider: engine.rider, drivetrain: engine.drivetrain })
 
     const now = Date.now()
     if (snapshot.status === 'riding' && now - lastSavedAt >= AUTOSAVE_MS) {
@@ -118,11 +119,26 @@ export function exportRide(): void {
   download(
     buildTcx(recorder.samples, { name: engine.snapshot().routeName ?? undefined }),
     tcxFilename(startedAt),
+    TCX_TYPE,
   )
 }
 
-function download(xml: string, filename: string): void {
-  const url = URL.createObjectURL(new Blob([xml], { type: 'application/vnd.garmin.tcx+xml' }))
+/**
+ * Hands the recorded ride over as a CSV: every second, with the gear, what the
+ * trainer was asked for and the settings behind it. For understanding a ride,
+ * not uploading it.
+ */
+export function exportRideCsv(): void {
+  const startedAt = recorder.startedAt
+  if (startedAt === null) throw new Error('Nothing recorded yet — ride first, then export.')
+  download(buildCsv(recorder.samples), csvFilename(startedAt), CSV_TYPE)
+}
+
+const TCX_TYPE = 'application/vnd.garmin.tcx+xml'
+const CSV_TYPE = 'text/csv'
+
+function download(text: string, filename: string, type: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type }))
   const link = document.createElement('a')
   link.href = url
   link.download = filename
@@ -298,7 +314,16 @@ export async function exportSavedRide(id: number, name: string): Promise<void> {
   if (!track || track.samples.length === 0) {
     throw new Error('That ride has no recorded track to export.')
   }
-  download(buildTcx(track.samples, { name }), tcxFilename(track.samples[0]!.time))
+  download(buildTcx(track.samples, { name }), tcxFilename(track.samples[0]!.time), TCX_TYPE)
+}
+
+/** The CSV for a past ride. Rides recorded before traces were kept leave those columns empty. */
+export async function exportSavedRideCsv(id: number): Promise<void> {
+  const track = await loadTrack(id)
+  if (!track || track.samples.length === 0) {
+    throw new Error('That ride has no recorded track to export.')
+  }
+  download(buildCsv(track.samples), csvFilename(track.samples[0]!.time), CSV_TYPE)
 }
 
 export function clearWorkout(): void {

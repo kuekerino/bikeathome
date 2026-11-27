@@ -29,12 +29,14 @@
     bluetoothAvailable,
     engine,
     exportRide,
+    exportRideCsv,
     loadDemoRoute,
     loadRouteFromText,
     parseWorkout,
     setWorkout,
     clearWorkout,
     exportSavedRide,
+    exportSavedRideCsv,
     rememberRide,
     repeatRide,
     heartRate,
@@ -396,6 +398,7 @@
       }}
       onShift={(direction) => engine.shift(direction)}
       onExport={() => void attempt(exportRide)}
+      onExportCsv={() => void attempt(exportRideCsv)}
     />
 
     {@render workoutPanel()}
@@ -420,6 +423,7 @@
     {busy}
     onRefresh={() => void refreshHistory()}
     onExport={(ride) => void attempt(() => exportSavedRide(ride.id, ride.name))}
+    onExportCsv={(ride) => void attempt(() => exportSavedRideCsv(ride.id))}
     onRepeat={(ride) =>
       void attempt(async () => {
         const workout = await repeatRide(ride.id)

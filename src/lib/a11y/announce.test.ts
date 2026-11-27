@@ -13,6 +13,7 @@ function snapshot(over: Partial<RideSnapshot> = {}): RideSnapshot {
     speedMs: 7.5,
     powerW: 183,
     cadenceRpm: 88,
+    trainerSpeedKmh: null,
     gear: 12,
     gearRatio: 2.4,
     relativeRatio: 1,
