@@ -1177,6 +1177,8 @@ const huTex = new THREE.CanvasTexture(huC); huTex.colorSpace = THREE.SRGBColorSp
   screen.position.y = 0.0065; unit.add(screen);
   const tyre = new THREE.Mesh(new THREE.TorusGeometry(0.335, 0.014, 10, 72), tape); tyre.rotation.y = Math.PI / 2; tyre.position.set(0, -0.66, -0.12); rig.add(tyre);
   rig.traverse(o => { if (o.isMesh && o !== screen) o.receiveShadow = true; });
+  rig.traverse(o => o.layers.set(1));                 // its own layer: drawn after the lens effects, not through them
+  sun.layers.enable(1); hemi.layers.enable(1);        // still lit by the same sun and sky
 }
 function drawHeadUnit(kmh, w, rpm, bpm) {
   huG.fillStyle = '#d9dccf'; huG.fillRect(0, 0, 128, 224);
@@ -1423,6 +1425,11 @@ function tick() {
   }
 
   composer.render();
+  // The handlebars and the bike computer go on top, sharp: the speed streaks, bloom and vignette are for the
+  // world going by, and a head unit has to stay readable at speed. Same lights, same shadow map as the frame.
+  renderer.autoClear = false; renderer.shadowMap.autoUpdate = false; camera.layers.set(1);
+  renderer.clearDepth(); renderer.render(scene, camera);
+  camera.layers.set(0); renderer.shadowMap.autoUpdate = true; renderer.autoClear = true;
   if (first) { first = false; $('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 900); }
   requestAnimationFrame(tick);
 }
