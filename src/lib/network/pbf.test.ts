@@ -24,7 +24,7 @@ function fileOf(blocks: { type: string; data: number[]; compress?: boolean }[]):
   const out: number[] = []
   for (const { type, data, compress } of blocks) {
     const blob = compress ? [...uint(2, data.length), ...bytes(3, deflateSync(Uint8Array.from(data)))] : bytes(1, data)
-    const header = [...bytes(1, text(type)), ...uint(3, blob.length)]
+    const header = [...bytes(1, text(type)), ...bytes(2, [9, 9, 9]), ...uint(3, blob.length)]
     out.push((header.length >>> 24) & 255, (header.length >>> 16) & 255, (header.length >>> 8) & 255, header.length & 255, ...header, ...blob)
   }
   return Uint8Array.from(out)
@@ -38,15 +38,25 @@ const dense = bytes(
   2,
   [
     ...packed(1, [5_000_000_001, 9], true), // ids 5000000001 and 5000000010, delta-coded, past 2^32
+    ...bytes(5, [...packed(1, [3, 4]), ...packed(2, [100, 200], true)]), // denseinfo, to be skipped
     ...packed(8, [raw(39.7667), raw(39.75) - raw(39.7667)], true),
     ...packed(9, [raw(2.7153), raw(2.7) - raw(2.7153)], true),
     ...packed(10, [1, 2, 3, 4, 0, 0]), // the first is a town called Sóller, the second has no tags
   ],
 )
-const wayMessage = [...uint(1, 77), ...packed(2, [5, 7]), ...packed(3, [6, 8]), ...packed(8, [5_000_000_010, -9], true)]
+const wayMessage = [...uint(1, 77), ...packed(2, [5, 7]), ...packed(3, [6, 8]), ...bytes(4, [...uint(1, 2), ...uint(2, 1234)]), ...packed(8, [5_000_000_010, -9], true)]
 const block = [...stringTable, ...bytes(2, dense), ...bytes(2, bytes(3, wayMessage))]
 
 describe('Reader', () => {
+  it('skips a length-delimited field to exactly its end', () => {
+    // the field this reader once landed a byte short of: length 3, then a varint field after it
+    const r = new Reader(Uint8Array.from([...bytes(1, [7, 7, 7]), ...uint(2, 42)]))
+    const [, wire] = r.tag()
+    r.skip(wire)
+    expect(r.tag()).toEqual([2, 0])
+    expect(r.varint()).toBe(42)
+  })
+
   it('reads varints past 2^32 and zigzag negatives', () => {
     const r = new Reader(Uint8Array.from([...varint(5_000_000_001), ...varint(zigzag(-3))]))
     expect(r.varint()).toBe(5_000_000_001)
