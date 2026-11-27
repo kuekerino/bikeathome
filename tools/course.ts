@@ -36,21 +36,9 @@ import {
 } from '../src/lib/course/course.ts'
 import { localFrame, type LatLon } from '../src/lib/course/geo.ts'
 import { readGpx, writeElevations } from '../src/lib/course/gpx.ts'
-import { sampleGrid, type Grid } from '../src/lib/course/grid.ts'
-import { buildProfile, cumulative, heightsAt, PROFILE_STEP_M, resample } from '../src/lib/course/profile.ts'
-import { ea, ign, sourceFor, type ElevationSource, type Tile } from '../src/lib/course/sources.ts'
-
-const CACHE_DIR = resolve(import.meta.dirname, '..', '.cache', 'course')
-const PARALLEL = 2
-/**
- * The Environment Agency's server sometimes holds a request open without
- * answering, and the same request sent again goes straight through. So:
- * a short wait per try, and plenty of tries. A tile is at most half a
- * megabyte, which never needs thirty seconds.
- */
-const ATTEMPTS = 10
-const TIMEOUT_MS = 30_000
-const MAX_BACKOFF_MS = 15_000
+import { buildProfile, cumulative, heightsAt, PROFILE_STEP_M, resample, type Profile } from '../src/lib/course/profile.ts'
+import { ea, ign, sourceFor, type ElevationSource } from '../src/lib/course/sources.ts'
+import { TileSet } from './tiles.ts'
 
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -60,6 +48,7 @@ async function main(): Promise<void> {
       margin: { type: 'string' },
       out: { type: 'string' },
       'no-terrain': { type: 'boolean', default: false },
+      'keep-heights': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
   })
@@ -73,6 +62,7 @@ async function main(): Promise<void> {
         `  --margin <m>      terrain beyond the road on every side (default ${TERRAIN_MARGIN_M})`,
         '  --out <dir>       where to write (default: next to the GPX)',
         '  --no-terrain      only write the GPX with new heights',
+        "  --keep-heights    trust the GPX's own heights and only build the terrain (for routes from the planner)",
       ].join('\n'),
     )
     process.exit(input ? 0 : 1)
@@ -91,25 +81,33 @@ async function main(): Promise<void> {
   const frame = localFrame(centre)
   const local = track.points.map(frame.toLocal)
   const resampled = resample(local)
-  const tiles = new TileSet(source)
-  const reach = 10 // metres either side of the line that the road search can probe
-  for (const p of resampled.points) {
-    for (const [dx, dz] of [[-reach, -reach], [reach, -reach], [-reach, reach], [reach, reach]] as const) {
-      tiles.want(source.fineTile(...source.project(frame.toLatLon(p.x + dx, p.z + dz))))
+  let profile: Profile
+  if (values['keep-heights']) {
+    // A route from the planner already carries the region's heights, bridges and tunnels laid straight from the map.
+    const given = track.elevations
+    if (given.some((e) => e === null)) throw new Error('--keep-heights needs a height at every point of the GPX.')
+    profile = { heights: heightsAt({ distance: cumulative(local), heights: given as number[] }, resampled.distance), missing: 0, bridged: [] }
+  } else {
+    const tiles = new TileSet(source)
+    const reach = 10 // metres either side of the line that the road search can probe
+    for (const p of resampled.points) {
+      for (const [dx, dz] of [[-reach, -reach], [reach, -reach], [-reach, reach], [reach, reach]] as const) {
+        tiles.want(source.fineTile(...source.project(frame.toLatLon(p.x + dx, p.z + dz))))
+      }
     }
+    await tiles.load('road')
+    profile = buildProfile(resampled, (x, z) => {
+      const [px, py] = source.project(frame.toLatLon(x, z))
+      return tiles.sample(source.fineTile(px, py), px, py)
+    })
   }
-  await tiles.load('road')
-  const profile = buildProfile(resampled, (x, z) => {
-    const [px, py] = source.project(frame.toLatLon(x, z))
-    return tiles.sample(source.fineTile(px, py), px, py)
-  })
   const elevations = heightsAt({ distance: resampled.distance, heights: profile.heights }, cumulative(local))
 
   const base = basename(path).replace(/\.gpx$/i, '')
   const outDir = values.out ? resolve(values.out) : dirname(path)
   await mkdir(outDir, { recursive: true })
-  const gpxOut = join(outDir, `${base}.lidar.gpx`)
-  await writeFile(gpxOut, withProvenance(writeElevations(xml, track.kind, elevations), source))
+  const gpxOut = values['keep-heights'] ? null : join(outDir, `${base}.lidar.gpx`)
+  if (gpxOut) await writeFile(gpxOut, withProvenance(writeElevations(xml, track.kind, elevations), source))
 
   // --- the terrain ----------------------------------------------------------
   let courseOut: string | null = null
@@ -173,86 +171,10 @@ async function main(): Promise<void> {
     )
   }
   if (terrainNote) lines.push(terrainNote)
-  lines.push('', `  wrote     ${gpxOut}`)
-  if (courseOut) lines.push(`            ${courseOut}`)
+  const written = [gpxOut, courseOut].filter((f): f is string => f !== null)
+  lines.push('', ...written.map((f, i) => `  ${i === 0 ? 'wrote' : '     '}     ${f}`))
   lines.push('', `  ${source.credit}`)
   console.log(lines.join('\n'))
-}
-
-/** Fetches, caches and holds the tiles a run needs, then answers height lookups from them. */
-class TileSet {
-  private readonly wanted = new Map<string, Tile>()
-  private readonly grids = new Map<string, Grid | null>()
-  private readonly source: ElevationSource
-
-  constructor(source: ElevationSource) {
-    this.source = source
-  }
-
-  want(tile: Tile): void {
-    this.wanted.set(tile.key, tile)
-  }
-
-  async load(what: string): Promise<void> {
-    const queue = [...this.wanted.values()].filter((tile) => !this.grids.has(tile.key))
-    const total = queue.length
-    let done = 0
-    const report = () => {
-      if (process.stdout.isTTY) process.stdout.write(`\r  ${what}: ${done} of ${total} tiles`)
-    }
-    report()
-    const worker = async () => {
-      for (let tile = queue.shift(); tile; tile = queue.shift()) {
-        this.grids.set(tile.key, await fetchGrid(tile, this.source))
-        done++
-        report()
-      }
-    }
-    await Promise.all(Array.from({ length: PARALLEL }, worker))
-    if (process.stdout.isTTY) process.stdout.write('\r')
-    const empty = [...this.grids.values()].filter((g) => g === null).length
-    console.log(`  ${what}: ${total} tiles${empty ? `, ${empty} without data` : ''}`)
-  }
-
-  sample(tile: Tile, x: number, y: number): number {
-    const grid = this.grids.get(tile.key)
-    return grid ? sampleGrid(grid, x, y) : Number.NaN
-  }
-}
-
-/** A tile from the cache, or from the service with retries; null if the service has nothing readable. */
-async function fetchGrid(tile: Tile, source: ElevationSource): Promise<Grid | null> {
-  const file = join(CACHE_DIR, source.id, tile.key)
-  try {
-    return tile.read(new Uint8Array(await readFile(file)))
-  } catch {
-    // not cached yet, or a damaged file: fetch it again
-  }
-
-  let lastError: unknown = null
-  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-    if (attempt > 0) await sleep(Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (attempt - 1)))
-    try {
-      const response = await fetch(tile.url, {
-        headers: { 'User-Agent': 'bikeathome-course-tool' },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      })
-      if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`)
-      if (!response.ok) {
-        console.warn(`\n  ${tile.key}: HTTP ${response.status}, treated as no data`)
-        return null
-      }
-      const body = new Uint8Array(await response.arrayBuffer())
-      const grid = tile.read(body)
-      await mkdir(dirname(file), { recursive: true })
-      await writeFile(file, body)
-      return grid
-    } catch (error) {
-      lastError = error
-    }
-  }
-  console.warn(`\n  ${tile.key}: gave up after ${ATTEMPTS} attempts (${String(lastError)}), treated as no data`)
-  return null
 }
 
 function pickSource(forced: string | undefined, centre: LatLon): ElevationSource {
@@ -310,10 +232,6 @@ function slug(text: string): string {
 function round(value: number, places: number): number {
   const k = 10 ** places
   return Math.round(value * k) / k
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((done) => setTimeout(done, ms))
 }
 
 main().catch((error: unknown) => {

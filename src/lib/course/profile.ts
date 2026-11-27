@@ -281,10 +281,11 @@ export function buildProfile(
   resampled: Resampled,
   height: (x: number, z: number) => number,
   step = PROFILE_STEP_M,
+  structures: readonly Structure[] = [],
 ): Profile {
   const raw = roadHeights(resampled.points, height)
   const filled = fillGaps(raw)
-  const steady = median(filled.values, 2)
+  const steady = spanStructures(median(filled.values, 2), resampled.distance, structures)
   const bridged = bridgeGaps(steady, step)
   const heights = mean(mean(bridged.values, 3), 3)
   const moved = ([a, b]: [number, number]) => {
@@ -299,6 +300,33 @@ export function buildProfile(
       .filter((span) => moved(span) >= REPORT_DEVIATION_M)
       .map(([a, b]) => ({ from: resampled.distance[a]!, to: resampled.distance[b]! })),
   }
+}
+
+/** A stretch known to be a bridge or a tunnel, in metres along the road. */
+export interface Structure {
+  from: number
+  to: number
+}
+
+/**
+ * Where a map says the road is on a bridge or in a tunnel, the ground under it
+ * says nothing about the road: lay a straight line from one end to the other.
+ * The ends are taken a little outside the structure, where the road is back on
+ * the ground. Better than finding them by their jumps, which misses a bridge
+ * over a shallow dip and cannot tell a bridge from an embankment.
+ */
+export function spanStructures(values: readonly number[], distance: readonly number[], structures: readonly Structure[]): number[] {
+  const out = values.slice()
+  const margin = 2 * PROFILE_STEP_M
+  for (const { from, to } of structures) {
+    let a = 0
+    while (a + 1 < distance.length && distance[a + 1]! <= from - margin) a++
+    let b = distance.length - 1
+    while (b - 1 >= 0 && distance[b - 1]! >= to + margin) b--
+    if (b - a < 2) continue
+    for (let k = a + 1; k < b; k++) out[k] = out[a]! + ((out[b]! - out[a]!) * (distance[k]! - distance[a]!)) / (distance[b]! - distance[a]!)
+  }
+  return out
 }
 
 /** Linear interpolation of a profile at arbitrary distances along the road. */

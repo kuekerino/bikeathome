@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { bridgeGaps, buildProfile, heightsAt, median, resample, roadHeights } from './profile.ts'
+import { bridgeGaps, buildProfile, heightsAt, median, resample, roadHeights, spanStructures } from './profile.ts'
 
 describe('resample', () => {
   it('steps along the line and keeps the end', () => {
@@ -128,5 +128,26 @@ describe('heightsAt', () => {
   it('interpolates, and holds the ends', () => {
     const profile = { distance: [0, 5, 10], heights: [100, 101, 103] }
     expect(heightsAt(profile, [0, 2.5, 7.5, 10, 12])).toEqual([100, 100.5, 102, 103, 103])
+  })
+})
+
+describe('spanStructures', () => {
+  it('lays a straight line over a mapped bridge, from ground on either side', () => {
+    const distance = Array.from({ length: 41 }, (_, k) => k * 5)
+    // road at 100 m rising 1 m per 50 m; the ground drops 8 m in a dip the bridge from 80 to 120 m crosses
+    const ground = distance.map((d) => 100 + d / 50 - (d > 80 && d < 120 ? 8 : 0))
+    const out = spanStructures(ground, distance, [{ from: 80, to: 120 }])
+    out.forEach((h, k) => expect(h).toBeCloseTo(100 + distance[k]! / 50, 6))
+  })
+
+  it('takes a tunnel through the hill instead of over it', () => {
+    const distance = Array.from({ length: 41 }, (_, k) => k * 5)
+    const hill = distance.map((d) => 300 + (d > 60 && d < 140 ? 40 : 0))
+    expect(Math.max(...spanStructures(hill, distance, [{ from: 60, to: 140 }]))).toBeCloseTo(300, 6)
+  })
+
+  it('leaves the road alone where nothing is mapped', () => {
+    const distance = [0, 5, 10, 15]
+    expect(spanStructures([1, 2, 3, 4], distance, [])).toEqual([1, 2, 3, 4])
   })
 })
