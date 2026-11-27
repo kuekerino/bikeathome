@@ -1406,6 +1406,8 @@ function tick() {
     $('h-sp').textContent = (st.v * 3.6).toFixed(1);
     $('h-gr').textContent = (shown.gradient >= 0 ? '+' : '') + shown.gradient.toFixed(1);
     $('h-di').textContent = (shown.distance / 1000).toFixed(2);
+    $('h-cad-box').hidden = !latest;                 // cadence comes from the trainer, through bikeathome
+    if (latest) $('h-cad').textContent = Math.round(latest.cadenceRpm || 0);
     $('h-gear-box').hidden = shown.gear == null;
     if (shown.gear != null) $('h-gear').textContent = shown.gear;
     // Until the ride is under way nothing moves: say why, and how to start.
